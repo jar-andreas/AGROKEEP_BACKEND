@@ -1,0 +1,31 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "outDir": "./dist",
+    "rootDir": ".",
+    "moduleResolution": "NodeNext",
+    "esModuleInterop": true,
+    "moduleDetection": "force",
+    "strict": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": false,
+    "ignoreDeprecations": "6.0", 
+    "baseUrl": ".",
+    "types": ["node", "bcrypt"],
+    "lib": ["ES2022"],
+    "composite": true
+  },
+  "include": ["index.ts", "src/**/*", "src/**/*.json"],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "**/*.spec.ts",
+    "**/*.test.ts",
+    "**/*.d.ts",
+    "node_modules/express-rate-limit/tsconfig.json"
+  ]
+}
