@@ -14,6 +14,7 @@ import {
 } from "./src/middleware/error.middleware.js";
 
 import userRoutes from "./src/routes/user.routes.js";
+import authRoutes from "./src/routes/googleAuth.route.js";
 declare global {
   namespace Express {
     interface Request {
@@ -118,6 +119,7 @@ app.get("/session", (req: Request, res: Response) => {
 });
 
 app.use("/api/v1/user", userRoutes);
+app.use("/api/v1/google-auth", authRoutes);
 
 // Handle 404
 app.use(notFoundRoutes);
