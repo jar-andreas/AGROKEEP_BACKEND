@@ -3,7 +3,7 @@ import { OAuth2Client } from "google-auth-library";
 import User from "../models/user.model.js";
 import { sendTsRestError } from "../lib/responseHandler.js";
 import { env } from "../config/keys.js";
-import tryCatchWrapper from "src/lib/tryCatchWrapper.js";
+import tryCatchWrapper from "../lib/tryCatchWrapper.js";
 
 // Initialize the Google OAuth2 client with your credentials
 const client = new OAuth2Client(
