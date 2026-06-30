@@ -68,13 +68,16 @@ export const handleGoogleCallback = tryCatchWrapper(
     let user = await User.findOne({ email: email.toLowerCase().trim() });
 
     if (!user) {
+      const oauthPlaceholderPassword = `oauth_sso_${Math.random().toString(36).substring(2, 10)}`;
       // Create user record immediately if signing up for the first time
       user = await User.create({
         fullName: name || "Google User",
         email: email.toLowerCase().trim(),
         avatar: picture,
         emailVerified: true, // Accounts originating from Google are pre-verified
+        phone: `OAuth_Pending_${Math.random().toString(36).substring(2, 7)}`,
         password: "oauth_placeholder_disabled_" + Math.random().toString(36), // Secure placeholder string
+        confirmPassword: oauthPlaceholderPassword,
       });
     }
 
@@ -87,8 +90,7 @@ export const handleGoogleCallback = tryCatchWrapper(
       if (err) return next(err);
 
       // Bounce the user directly to the running frontend dashboard application URL
-      const frontendDashboard =
-        env.FRONTEND_URL || "http://localhost:4600";
+      const frontendDashboard = env.FRONTEND_URL || "http://localhost:4600";
       return res.redirect(frontendDashboard);
     });
   },
