@@ -69,13 +69,18 @@ export const handleGoogleCallback = tryCatchWrapper(
 
     if (!user) {
       const oauthPlaceholderPassword = `oauth_sso_${Math.random().toString(36).substring(2, 10)}`;
+
+      // 💡 Generate a valid-looking international phone number string to pass strict validation formats
+      // This generates something like "+2348000012345"
+      const randomSuffix = Math.floor(10000 + Math.random() * 90000);
+      const validFakePhone = `+23480000${randomSuffix}`;
       // Create user record immediately if signing up for the first time
       user = await User.create({
         fullName: name || "Google User",
         email: email.toLowerCase().trim(),
         avatar: picture,
         emailVerified: true, // Accounts originating from Google are pre-verified
-        phone: `OAuth_Pending_${Math.random().toString(36).substring(2, 7)}`,
+        phone: validFakePhone,
         password: "oauth_placeholder_disabled_" + Math.random().toString(36), // Secure placeholder string
         confirmPassword: oauthPlaceholderPassword,
       });
