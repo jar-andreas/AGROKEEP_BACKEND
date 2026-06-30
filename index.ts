@@ -13,6 +13,7 @@ import {
   setupGlobalErrorHandlers,
 } from "./src/middleware/error.middleware.js";
 
+import userRoutes from "./src/routes/user.routes.js";
 declare global {
   namespace Express {
     interface Request {
@@ -115,6 +116,8 @@ app.get("/session", (req: Request, res: Response) => {
     session: req.session,
   });
 });
+
+app.use("/api/v1/user", userRoutes);
 
 // Handle 404
 app.use(notFoundRoutes);
