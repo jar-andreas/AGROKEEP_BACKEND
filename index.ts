@@ -119,7 +119,7 @@ app.get("/session", (req: Request, res: Response) => {
 });
 
 app.use("/api/v1/user", userRoutes);
-app.use("/api/v1/auth", authRoutes);
+app.use("/api/auth", authRoutes);
 
 // Handle 404
 app.use(notFoundRoutes);
