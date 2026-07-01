@@ -11,6 +11,8 @@ import {
 import { customRateLimiter } from "../middleware/ratelimit.middleware.js";
 import { validateFormData } from "../middleware/formvalidate.middleware.js";
 import {
+  forgotPasswordSchema,
+  resetPasswordSchema,
   ValidateLoginSchema,
   validateSignupSchema,
 } from "../lib/schemaValidation.js";
@@ -42,9 +44,25 @@ router.post(
 
 
 
-router.post('/forgot-password', forgotPassword);
-router.post('/resend-otp', resendForgotPasswordOtp);
-router.post('/reset-password', resetPassword);
+router.post(
+  "/forgot-password",
+  customRateLimiter(5, 1),
+  validateFormData(forgotPasswordSchema),
+  forgotPassword,
+);
 
+router.post(
+  "/resend-otp",
+  customRateLimiter(5, 1),
+  validateFormData(forgotPasswordSchema),
+  resendForgotPasswordOtp, // Reuses your resend OTP logic
+);
+
+router.post(
+  "/reset-password",
+  customRateLimiter(10, 3),
+  validateFormData(resetPasswordSchema),
+  resetPassword,
+);
 
 export default router;
