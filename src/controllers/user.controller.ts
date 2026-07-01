@@ -283,3 +283,19 @@ export const loginUser = tryCatchWrapper(
     });
   },
 );
+
+//get me
+export const getMe = tryCatchWrapper(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const userId = req.session.userId;
+
+    const user = await User.findById(userId).lean();
+    if (!user) {
+      return sendTsRestError(res, 404, "User not found");
+    }
+    return sendTsRestSuccess(res, 200, {
+      message: "User retrieved successfully",
+      data: user,
+    });
+  },
+);

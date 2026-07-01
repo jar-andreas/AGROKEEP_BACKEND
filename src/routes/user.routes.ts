@@ -1,5 +1,6 @@
 import { Router } from "express";
 import {
+    getMe,
   loginUser,
   registerUser,
   resendVerifyAccountOtp,
@@ -11,6 +12,7 @@ import {
   ValidateLoginSchema,
   validateSignupSchema,
 } from "../lib/schemaValidation.js";
+import { isAuthenticated } from "../middleware/auth.middleware.js";
 
 const router = Router();
 
@@ -34,6 +36,12 @@ router.post(
   customRateLimiter(10, 3),
   validateFormData(ValidateLoginSchema),
   loginUser,
+);
+
+router.get(
+  "/me", 
+  isAuthenticated, 
+  getMe
 );
 
 export default router;
