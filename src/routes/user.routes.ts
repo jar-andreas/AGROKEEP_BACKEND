@@ -53,7 +53,7 @@ router.post(
   "/resend-otp",
   customRateLimiter(5, 1),
   validateFormData(forgotPasswordSchema),
-  resendForgotPasswordOtp, // Reuses your resend OTP logic
+  resendForgotPasswordOtp, 
 );
 
 router.post(
