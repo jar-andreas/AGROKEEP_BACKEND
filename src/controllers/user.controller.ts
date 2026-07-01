@@ -283,3 +283,200 @@ export const loginUser = tryCatchWrapper(
     });
   },
 );
+
+export const forgotPassword = tryCatchWrapper(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const { email } = req.body;
+
+    if (!email) {
+      return sendTsRestError(res, 400, "Email address is required.");
+    }
+
+    // 1. Verify user exists
+    const user = await User.findOne({ email }).lean();
+    if (!user) {
+      // Security Best Practice: Generic message prevents user enumeration
+      return sendTsRestSuccess(res, 200, {
+        message: "If an account with that email exists, a password reset OTP has been sent.",
+      });
+    }
+
+    // 2. Clear any lingering stale password tokens for this email
+    await Otp.deleteMany({ email });
+
+    // 3. Securely generate and hash the reset OTP
+    const otp = generateOtp();
+    const hashedOtp = await hashOtp(otp);
+
+    // 4. Save to the Otp collection with a 15-minute expiration window
+    await Otp.create({
+      email,
+      otp: hashedOtp,
+      expiresAt: new Date(Date.now() + 15 * 60 * 1000), // 15-minute window
+      attempts: 0,
+    });
+
+    // 5. Construct structural frontend link for context parameters
+    const frontendUrl = env.FRONTEND_URL || "http://localhost:4600";
+    const resetLink = `${frontendUrl}/auth/reset-password?email=${encodeURIComponent(email)}`;
+
+    // 6. Send email notification (reusing or swapping your core mail layout utility)
+    const emailSent = await sendWelcomeEmail(
+      email,
+      user.fullName,
+      otp,
+      resetLink,
+    );
+
+    if (!emailSent) {
+      return sendTsRestError(res, 500, "Failed to send recovery OTP. Please try again later.");
+    }
+
+    return sendTsRestSuccess(res, 200, {
+      message: "If an account with that email exists, a password reset OTP has been sent.",
+    });
+  }
+);
+
+export const resendForgotPasswordOtp = tryCatchWrapper(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const { email } = req.body;
+
+    if (!email) {
+      return sendTsRestError(res, 400, "Email address is required.");
+    }
+
+    // 1. Verify the user exists in your database
+    const user = await User.findOne({ email }).lean();
+    if (!user) {
+      // Security Best Practice: Return success to prevent account enumeration
+      return sendTsRestSuccess(res, 200, {
+        message: "If an account with that email exists, a new recovery OTP has been sent.",
+      });
+    }
+
+    // 2. Cooldown Rate-Limiting Guard
+    // Check if an OTP document already exists to enforce a 60-second delay
+    const existingOtp = await Otp.findOne({ email });
+    if (existingOtp) {
+      const timeElapsed = Date.now() - new Date(existingOtp.createdAt).getTime();
+      const COOLDOWN_TIME = 60000; // 60 seconds
+
+      if (timeElapsed < COOLDOWN_TIME) {
+        const secondsLeft = Math.ceil((COOLDOWN_TIME - timeElapsed) / 1000);
+        return sendTsRestError(
+          res,
+          429,
+          `Please wait ${secondsLeft} seconds before requesting a new recovery code.`
+        );
+      }
+    }
+
+    // 3. Purge the old token mapping record
+    await Otp.deleteMany({ email });
+
+    // 4. Generate & Hash the fresh reset OTP
+    const otp = generateOtp();
+    const hashedOtp = await hashOtp(otp);
+
+    // 5. Commit fresh token payload to the collection
+    await Otp.create({
+      email,
+      otp: hashedOtp,
+      expiresAt: new Date(Date.now() + 15 * 60 * 1000), // Fresh 15-minute window
+      attempts: 0, // Reset brute-force counter back to 0
+    });
+
+    // 6. Build the target frontend parameter string
+    const frontendUrl = env.FRONTEND_URL || "http://localhost:4600";
+    const resetLink = `${frontendUrl}/auth/reset-password?email=${encodeURIComponent(email)}`;
+
+    // 7. Dispatch notification via email utility
+    const emailSent = await sendWelcomeEmail(
+      email,
+      user.fullName,
+      otp,
+      resetLink,
+    );
+
+    if (!emailSent) {
+      return sendTsRestError(res, 500, "Failed to deliver recovery OTP. Please try again.");
+    }
+
+    return sendTsRestSuccess(res, 200, {
+      message: "A new password reset OTP has been sent to your email.",
+    });
+  }
+);
+
+export const resetPassword = tryCatchWrapper(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const { email } = req.query;
+    // 1. Destructure both parameters from the request body
+    const { otp, newPassword, confirmPassword } = req.body;
+
+    if (!email || typeof email !== "string") {
+      return sendTsRestError(res, 400, "Valid email parameter is missing.");
+    }
+
+    if (!otp || !newPassword || !confirmPassword) {
+      return sendTsRestError(res, 400, "Verification code, new password, and confirmation are required.");
+    }
+
+    // 2. Exact Match Operational Guard: Validate string symmetry
+    if (newPassword !== confirmPassword) {
+      return sendTsRestError(res, 400, "Passwords do not match. Please ensure both fields are identical.");
+    }
+
+    // 3. Fetch token mapping record
+    const otpRecord = await Otp.findOne({ email });
+    if (!otpRecord) {
+      return sendTsRestError(res, 400, "Reset token not found or expired.");
+    }
+
+    // 4. Precise Temporal Expiry Check
+    if (new Date() > otpRecord.expiresAt) {
+      await Otp.deleteOne({ _id: otpRecord._id });
+      return sendTsRestError(res, 400, "The verification code has expired.");
+    }
+
+    // 5. Brute-Force Check: Enforce execution bounds
+    const MAX_ATTEMPTS = 3;
+    if (otpRecord.attempts >= MAX_ATTEMPTS) {
+      await Otp.deleteOne({ _id: otpRecord._id });
+      return sendTsRestError(
+        res,
+        400,
+        "Too many incorrect attempts. Please request a new recovery code."
+      );
+    }
+
+    // 6. Verify match against encrypted token
+    const isOtpValid = await bcrypt.compare(otp, otpRecord.otp);
+    if (!isOtpValid) {
+      otpRecord.attempts += 1;
+      await otpRecord.save();
+
+      const remainingAttempts = MAX_ATTEMPTS - otpRecord.attempts;
+      return sendTsRestError(
+        res,
+        400,
+        `Invalid verification code. ${remainingAttempts} attempts remaining.`
+      );
+    }
+
+    // 7. Hash the fresh password payload since validation passed
+    const salt = await bcrypt.genSalt(10);
+    const hashedNewPassword = await bcrypt.hash(newPassword, salt);
+
+    // 8. Execute atomic database operations: Update user credentials and flush the OTP token
+    await Promise.all([
+      User.findOneAndUpdate({ email }, { password: hashedNewPassword }),
+      Otp.deleteOne({ _id: otpRecord._id }),
+    ]);
+
+    return sendTsRestSuccess(res, 200, {
+      message: "Password reset successfully. You can now log in with your new credentials.",
+    });
+  }
+);

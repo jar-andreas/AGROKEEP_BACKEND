@@ -78,3 +78,26 @@ export const ValidateLoginSchema = z.object({
       message: "Password must contain at least one special character",
     }),
 });
+
+export const forgotPasswordSchema = z.object({
+  email: z.string().min(1, 'Email is required').email('Invalid email format'),
+});
+
+export const resendOtpSchema = z.object({
+  email: z.string().min(1, 'Email is required').email('Invalid email format'),
+});
+
+export const resetPasswordSchema = z.object({
+  email: z.string().min(1, 'Email is required').email('Invalid email format'),
+  otp: z.string().length(6, 'OTP must be exactly 6 digits'),
+  newPassword: z.string().min(8, 'Password must be at least 8 characters long'),
+  confirmPassword: z.string().min(8, 'Password must be at least 8 characters long'),
+});
+
+export type SignupInput = z.infer<typeof validateSignupSchema>;
+export type LoginInput = z.infer<typeof ValidateLoginSchema>;
+export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
+export type ResendOtpInput = z.infer<typeof resendOtpSchema>;
+export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
+
+

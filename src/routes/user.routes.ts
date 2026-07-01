@@ -4,6 +4,9 @@ import {
   registerUser,
   resendVerifyAccountOtp,
   verifyAccount,
+  resendForgotPasswordOtp,
+  forgotPassword,
+  resetPassword 
 } from "../controllers/user.controller.js";
 import { customRateLimiter } from "../middleware/ratelimit.middleware.js";
 import { validateFormData } from "../middleware/formvalidate.middleware.js";
@@ -11,6 +14,7 @@ import {
   ValidateLoginSchema,
   validateSignupSchema,
 } from "../lib/schemaValidation.js";
+ 
 
 const router = Router();
 
@@ -35,5 +39,12 @@ router.post(
   validateFormData(ValidateLoginSchema),
   loginUser,
 );
+
+
+
+router.post('/forgot-password', forgotPassword);
+router.post('/resend-otp', resendForgotPasswordOtp);
+router.post('/reset-password', resetPassword);
+
 
 export default router;
