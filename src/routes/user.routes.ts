@@ -42,8 +42,6 @@ router.post(
   loginUser,
 );
 
-
-
 router.post(
   "/forgot-password",
   customRateLimiter(5, 1),
