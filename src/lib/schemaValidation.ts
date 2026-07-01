@@ -131,6 +131,11 @@ export const resetPasswordSchema = z
     }),
   })
 
+  .refine((data) => data.newPassword === data.confirmPassword, {
+    message: 'Passwords do not match',
+    path: ['confirmPassword'], // Targets the error feedback explicitly to the confirmPassword field
+  });
+
 export type SignupInput = z.infer<typeof validateSignupSchema>;
 export type LoginInput = z.infer<typeof ValidateLoginSchema>;
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
