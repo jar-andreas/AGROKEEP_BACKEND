@@ -6,7 +6,7 @@ import bcrypt from "bcrypt";
 import crypto from "crypto";
 import tryCatchWrapper from "../lib/tryCatchWrapper.js";
 import { env } from "../config/keys.js";
-import { sendWelcomeEmail } from "../lib/email.js";
+import { sendOtpEmail, sendWelcomeEmail } from "../lib/email.js";
 
 //generate a cryptographically random 6 digit OTP
 const generateOtp = (): string => {
@@ -299,6 +299,7 @@ export const getMe = tryCatchWrapper(
     });
   },
 );
+
 export const forgotPassword = tryCatchWrapper(
   async (req: Request, res: Response, next: NextFunction) => {
     const { email } = req.body;
@@ -312,7 +313,8 @@ export const forgotPassword = tryCatchWrapper(
     if (!user) {
       // Security Best Practice: Generic message prevents user enumeration
       return sendTsRestSuccess(res, 200, {
-        message: "If an account with that email exists, a password reset OTP has been sent.",
+        message:
+          "If an account with that email exists, a password reset OTP has been sent.",
       });
     }
 
@@ -333,24 +335,24 @@ export const forgotPassword = tryCatchWrapper(
 
     // 5. Construct structural frontend link for context parameters
     const frontendUrl = env.FRONTEND_URL || "http://localhost:4600";
-    const resetLink = `${frontendUrl}/auth/reset-password?email=${encodeURIComponent(email)}`;
+    const resetLink = `${frontendUrl}/auth/verify-forgotpassword-otp?email=${encodeURIComponent(email)}`;
 
     // 6. Send email notification (reusing or swapping your core mail layout utility)
-    const emailSent = await sendWelcomeEmail(
-      email,
-      user.fullName,
-      otp,
-      resetLink,
-    );
+    const emailSent = await sendOtpEmail(email, user.fullName, otp, resetLink);
 
     if (!emailSent) {
-      return sendTsRestError(res, 500, "Failed to send recovery OTP. Please try again later.");
+      return sendTsRestError(
+        res,
+        500,
+        "Failed to send recovery OTP. Please try again later.",
+      );
     }
 
     return sendTsRestSuccess(res, 200, {
-      message: "If an account with that email exists, a password reset OTP has been sent.",
+      message:
+        "If an account with that email exists, a password reset OTP and a verification link has been sent to your email.",
     });
-  }
+  },
 );
 
 export const resendForgotPasswordOtp = tryCatchWrapper(
@@ -366,7 +368,8 @@ export const resendForgotPasswordOtp = tryCatchWrapper(
     if (!user) {
       // Security Best Practice: Return success to prevent account enumeration
       return sendTsRestSuccess(res, 200, {
-        message: "If an account with that email exists, a new recovery OTP has been sent.",
+        message:
+          "If an account with that email exists, a new recovery OTP has been sent.",
       });
     }
 
@@ -374,7 +377,8 @@ export const resendForgotPasswordOtp = tryCatchWrapper(
     // Check if an OTP document already exists to enforce a 60-second delay
     const existingOtp = await Otp.findOne({ email });
     if (existingOtp) {
-      const timeElapsed = Date.now() - new Date(existingOtp.createdAt).getTime();
+      const timeElapsed =
+        Date.now() - new Date(existingOtp.createdAt).getTime();
       const COOLDOWN_TIME = 60000; // 60 seconds
 
       if (timeElapsed < COOLDOWN_TIME) {
@@ -382,7 +386,7 @@ export const resendForgotPasswordOtp = tryCatchWrapper(
         return sendTsRestError(
           res,
           429,
-          `Please wait ${secondsLeft} seconds before requesting a new recovery code.`
+          `Please wait ${secondsLeft} seconds before requesting a new recovery code.`,
         );
       }
     }
@@ -404,94 +408,131 @@ export const resendForgotPasswordOtp = tryCatchWrapper(
 
     // 6. Build the target frontend parameter string
     const frontendUrl = env.FRONTEND_URL || "http://localhost:4600";
-    const resetLink = `${frontendUrl}/auth/reset-password?email=${encodeURIComponent(email)}`;
+    const resetLink = `${frontendUrl}/auth/verify-forgotpassword-otp?email=${encodeURIComponent(email)}`;
 
     // 7. Dispatch notification via email utility
-    const emailSent = await sendWelcomeEmail(
-      email,
-      user.fullName,
-      otp,
-      resetLink,
-    );
+    const emailSent = await sendOtpEmail(email, user.fullName, otp, resetLink);
 
     if (!emailSent) {
-      return sendTsRestError(res, 500, "Failed to deliver recovery OTP. Please try again.");
+      return sendTsRestError(
+        res,
+        500,
+        "Failed to deliver recovery OTP. Please try again.",
+      );
     }
 
     return sendTsRestSuccess(res, 200, {
-      message: "A new password reset OTP has been sent to your email.",
+      message: "A new password reset OTP and verification link has been sent to your email.",
     });
-  }
+  },
+);
+
+export const verifyForgotPasswordOtp = tryCatchWrapper(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const { email } = req.query;
+    const { otp } = req.body;
+
+    // Safety check for the URL parameter
+    if (!email) {
+      return sendTsRestError(
+        res,
+        400,
+        "Email parameter is missing from the URL.",
+      );
+    }
+
+    const otpRecord = await Otp.findOne({ email });
+    if (!otpRecord) {
+      return sendTsRestError(res, 400, "OTP not found or has expired");
+    }
+    //check expiry explicity as a safety net
+    if (otpRecord.expiresAt < new Date()) {
+      await Otp.deleteMany({ email });
+      return sendTsRestError(
+        res,
+        400,
+        "OTP has expired.Please request a new one",
+      );
+    }
+    //max 5 attempts before invalidating
+    if (otpRecord.attempts >= 5) {
+      await Otp.deleteMany({ email });
+      return sendTsRestError(
+        res,
+        400,
+        "Too many incorrect attempts .Please request a new OTP",
+      );
+    }
+    const isOtpValid = await bcrypt.compare(otp, otpRecord.otp);
+    if (!isOtpValid) {
+      //increment attempts
+      await Otp.updateOne({ email }, { $inc: { attempts: 1 } });
+      const remainingAttempts = 5 - (otpRecord.attempts + 1);
+      return sendTsRestError(
+        res,
+        400,
+        `Invalid OTP. You have ${remainingAttempts} attempts left.`,
+      );
+    }
+    //OTP is valid-store verified email in session for the reset step
+    req.session.resetEmail = email as string;
+
+    //clean up OTP
+    await Otp.deleteMany({ email });
+    return sendTsRestSuccess(res, 200, {
+      message: "Otp verified successfully.You may now reset your password",
+    });
+  },
 );
 
 export const resetPassword = tryCatchWrapper(
   async (req: Request, res: Response, next: NextFunction) => {
     const { email } = req.query;
     // 1. Destructure both parameters from the request body
-    const { otp, newPassword, confirmPassword } = req.body;
+    const { newPassword, confirmPassword } = req.body;
 
     if (!email || typeof email !== "string") {
       return sendTsRestError(res, 400, "Valid email parameter is missing.");
     }
 
-    if (!otp || !newPassword || !confirmPassword) {
-      return sendTsRestError(res, 400, "Verification code, new password, and confirmation are required.");
+    if (!newPassword || !confirmPassword) {
+      return sendTsRestError(
+        res,
+        400,
+        "New password and confirm password are required.",
+      );
     }
 
     // 2. Exact Match Operational Guard: Validate string symmetry
     if (newPassword !== confirmPassword) {
-      return sendTsRestError(res, 400, "Passwords do not match. Please ensure both fields are identical.");
-    }
-
-    // 3. Fetch token mapping record
-    const otpRecord = await Otp.findOne({ email });
-    if (!otpRecord) {
-      return sendTsRestError(res, 400, "Reset token not found or expired.");
-    }
-
-    // 4. Precise Temporal Expiry Check
-    if (new Date() > otpRecord.expiresAt) {
-      await Otp.deleteOne({ _id: otpRecord._id });
-      return sendTsRestError(res, 400, "The verification code has expired.");
-    }
-
-    // 5. Brute-Force Check: Enforce execution bounds
-    const MAX_ATTEMPTS = 3;
-    if (otpRecord.attempts >= MAX_ATTEMPTS) {
-      await Otp.deleteOne({ _id: otpRecord._id });
       return sendTsRestError(
         res,
         400,
-        "Too many incorrect attempts. Please request a new recovery code."
+        "Passwords do not match. Please ensure both fields are identical.",
       );
     }
 
-    // 6. Verify match against encrypted token
-    const isOtpValid = await bcrypt.compare(otp, otpRecord.otp);
-    if (!isOtpValid) {
-      otpRecord.attempts += 1;
-      await otpRecord.save();
-
-      const remainingAttempts = MAX_ATTEMPTS - otpRecord.attempts;
+    const user = await User.findOne({ email }).select("+password");
+    if (!user) {
+      return sendTsRestError(res, 404, "User not found");
+    }
+    //prevent reusing the same password
+    const isSamePassword = await bcrypt.compare(newPassword, user.password);
+    if (isSamePassword) {
       return sendTsRestError(
         res,
         400,
-        `Invalid verification code. ${remainingAttempts} attempts remaining.`
+        "New password must be different from the old password",
       );
     }
-
-    // 7. Hash the fresh password payload since validation passed
+    //hash new password
     const salt = await bcrypt.genSalt(10);
-    const hashedNewPassword = await bcrypt.hash(newPassword, salt);
-
-    // 8. Execute atomic database operations: Update user credentials and flush the OTP token
-    await Promise.all([
-      User.findOneAndUpdate({ email }, { password: hashedNewPassword }),
-      Otp.deleteOne({ _id: otpRecord._id }),
-    ]);
+    const hashPassword = await bcrypt.hash(newPassword, salt);
+    user.password = hashPassword;
+    await user.save();
 
     return sendTsRestSuccess(res, 200, {
-      message: "Password reset successfully. You can now log in with your new credentials.",
+      message: "Password reset successfully. You can now log in",
     });
-  }
+  },
 );
