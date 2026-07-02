@@ -19,7 +19,7 @@ import {
   validateSignupSchema,
   verifyForgotPasswordOtpSchema,
 } from "../lib/schemaValidation.js";
-import { isAuthenticated } from "src/middleware/auth.middleware.js";
+import { isAuthenticated } from "../middleware/auth.middleware.js";
 
 const router = Router();
 
