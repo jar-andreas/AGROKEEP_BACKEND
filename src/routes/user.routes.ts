@@ -1,18 +1,23 @@
 import { Router } from "express";
 import {
-    getMe,
+  getMe,
   loginUser,
   registerUser,
   resendVerifyAccountOtp,
   verifyAccount,
+  resendForgotPasswordOtp,
+  forgotPassword,
+  resetPassword,
 } from "../controllers/user.controller.js";
 import { customRateLimiter } from "../middleware/ratelimit.middleware.js";
 import { validateFormData } from "../middleware/formvalidate.middleware.js";
 import {
+  forgotPasswordSchema,
+  resetPasswordSchema,
   ValidateLoginSchema,
   validateSignupSchema,
 } from "../lib/schemaValidation.js";
-import { isAuthenticated } from "../middleware/auth.middleware.js";
+import { isAuthenticated } from "src/middleware/auth.middleware.js";
 
 const router = Router();
 
@@ -38,10 +43,26 @@ router.post(
   loginUser,
 );
 
-router.get(
-  "/me", 
-  isAuthenticated, 
-  getMe
+router.get("/me", isAuthenticated, getMe);
+router.post(
+  "/forgot-password",
+  customRateLimiter(5, 1),
+  validateFormData(forgotPasswordSchema),
+  forgotPassword,
+);
+
+router.post(
+  "/resend-otp",
+  customRateLimiter(5, 1),
+  validateFormData(forgotPasswordSchema),
+  resendForgotPasswordOtp,
+);
+
+router.post(
+  "/reset-password",
+  customRateLimiter(10, 3),
+  validateFormData(resetPasswordSchema),
+  resetPassword,
 );
 
 export default router;
