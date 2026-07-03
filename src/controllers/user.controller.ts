@@ -53,7 +53,7 @@ export const registerUser = tryCatchWrapper(
 
     // Dynamic verification link for your teammate's local environment
     const frontendUrl = env.FRONTEND_URL || "http://localhost:4600";
-    const verificationLink = `${frontendUrl}/auth/verify-Account?email=${encodeURIComponent(email)}`;
+    const verificationLink = `${frontendUrl}/auth/verify-account?email=${encodeURIComponent(email)}`;
 
     // Send the email
     const emailSent = await sendWelcomeEmail(
@@ -212,7 +212,7 @@ export const resendVerifyAccountOtp = tryCatchWrapper(
     // Construct the verification link
     // encodeURIComponent ensures special characters in the email don't break the URL
     const frontendUrl = env.FRONTEND_URL || "http://localhost:4600";
-    const verificationLink = `${frontendUrl}/auth/verify-Account?email=${encodeURIComponent(email)}`;
+    const verificationLink = `${frontendUrl}/auth/verify-account?email=${encodeURIComponent(email)}`;
 
     const emailSent = await sendWelcomeEmail(
       email,

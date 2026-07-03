@@ -17,7 +17,6 @@ import {
   resetPasswordSchema,
   ValidateLoginSchema,
   validateSignupSchema,
-  verifyForgotPasswordOtpSchema,
 } from "../lib/schemaValidation.js";
 import { isAuthenticated } from "../middleware/auth.middleware.js";
 
@@ -30,12 +29,7 @@ router.post(
   registerUser,
 );
 
-router.post(
-  "/verify-account",
-  customRateLimiter(10, 5),
-  validateFormData(verifyForgotPasswordOtpSchema),
-  verifyAccount,
-);
+router.post("/verify-account", customRateLimiter(10, 5), verifyAccount);
 
 router.post(
   "/resend-verifyaccount-otp",
@@ -62,7 +56,6 @@ router.post(
 router.post(
   "/verify-forgotpassword-otp",
   customRateLimiter(10, 5),
-  validateFormData(verifyForgotPasswordOtpSchema),
   verifyForgotPasswordOtp,
 );
 
