@@ -87,6 +87,41 @@ export const resendOtpSchema = z.object({
   email: z.string().min(1, "Email is required").email("Invalid email format"),
 });
 
+export const verifyForgotPasswordOtpSchema = z.object({
+  body: z.object({
+    otp: z
+      .string({ message: "OTP code is required." })
+      // 💡 Ensures they don't send whitespace or letters if it's a numeric code
+      .regex(/^\d+$/, "OTP must contain only numbers.")
+      // Matches the exact length of your token generator (e.g., 4, 5, or 6 digits)
+      .min(6, "OTP cannot be less than 6 digits."),
+  }),
+});
+
+export const validateContactUsSchema = z.object({
+  fullName: z
+    .string()
+    .trim()
+    .min(2, { message: "Full name must be at least 2 characters" })
+    .max(50, { message: "Full name is too long" }),
+  email: z
+    .string()
+    .trim()
+    .email({ message: "Invalid email address" })
+    .lowercase(),
+  phone: z
+    .string()
+    .refine(
+      (num) => num === "" || /^\+\d{10,15}$/.test(num),
+      "Invalid phone number",
+    ),
+  message: z
+    .string()
+    .trim()
+    .min(10, { message: "Message must be at least 10 characters" })
+    .max(1000, { message: "Message cannot exceed 1000 characters" }),
+});
+
 export const resetPasswordSchema = z
   .object({
     newPassword: z
@@ -128,4 +163,8 @@ export type SignupInput = z.infer<typeof validateSignupSchema>;
 export type LoginInput = z.infer<typeof ValidateLoginSchema>;
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
 export type ResendOtpInput = z.infer<typeof resendOtpSchema>;
+export type VerifyForgotPasswordOtpInput = z.infer<
+  typeof verifyForgotPasswordOtpSchema
+>;
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
+export type validateContactUsSchema = z.infer<typeof validateContactUsSchema>;

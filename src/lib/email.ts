@@ -233,3 +233,57 @@ export const sendWelcomeEmail = async (
     textContent: `Welcome to AgroKeep! Your verification code is: ${otp}. Initialize profile here: ${verificationLink}`,
   });
 };
+
+export const sendContactInquiry = async (
+  fullName: string,
+  clientEmail: string,
+  phone: string,
+  message: string,
+): Promise<boolean> => {
+  const htmlContent = `
+    <div style="font-family: 'Inter', Arial, sans-serif; line-height: 1.6; color: #1F2937; max-width: 600px; margin: 0 auto; border: 1px solid #E5E7EB; border-radius: 8px; overflow: hidden;">
+      <!-- Header Banner matching AgroKeep Theme -->
+      <div style="background-color: #1E5631; padding: 24px; text-align: center;">
+        <h2 style="color: #FFFFFF; margin: 0; font-size: 22px; font-weight: 600; letter-spacing: 0.5px;">AgroKeep Support Hub</h2>
+        <p style="color: #D1FAE5; margin: 4px 0 0 0; font-size: 14px;">New Customer Contact Inquiry</p>
+      </div>
+
+      <!-- Content Body -->
+      <div style="padding: 24px; background-color: #FFFFFF;">
+        <h3 style="color: #1E5631; margin-top: 0; font-size: 18px; border-bottom: 2px solid #F3F4F6; padding-bottom: 8px;">Inquiry Overview</h3>
+        
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+          <tr>
+            <td style="padding: 6px 0; font-weight: bold; color: #4B5563; width: 30%;">Sender Name:</td>
+            <td style="padding: 6px 0; color: #1F2937;">${fullName}</td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; font-weight: bold; color: #4B5563;">Email Address:</td>
+            <td style="padding: 6px 0; color: #1F2937;"><a href="mailto:${clientEmail}" style="color: #1E5631; text-decoration: underline;">${clientEmail}</a></td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; font-weight: bold; color: #4B5563;">Phone Number:</td>
+            <td style="padding: 6px 0; color: #1F2937;">${phone || "Not Provided"}</td>
+          </tr>
+        </table>
+
+        <h3 style="color: #1E5631; font-size: 16px; margin-bottom: 8px;">Customer Message:</h3>
+        <div style="background-color: #F9FAFB; border-left: 4px solid #1E5631; padding: 16px; border-radius: 4px; color: #374151; font-size: 15px; white-space: pre-wrap;">${message}</div>
+      </div>
+
+      <!-- Footer -->
+      <div style="background-color: #F3F4F6; padding: 16px; text-align: center; font-size: 12px; color: #6B7280; border-top: 1px solid #E5E7EB;">
+        This operational email was generated automatically from the AgroKeep platform contact form.
+      </div>
+    </div>
+  `;
+
+  return sendEmail({
+    to: env.EMAIL_OWNER,
+    toName: "AgroKeep Admin",
+    // 💡 Using a fallback, clean subject line since the form doesn't provide one
+    subject: `[Contact Form] New Support Inquiry from ${fullName}`,
+    htmlContent,
+    textContent: `New message from ${fullName} (${clientEmail}): ${message}`,
+  });
+};

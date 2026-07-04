@@ -29,7 +29,11 @@ router.post(
   registerUser,
 );
 
-router.post("/verify-account", customRateLimiter(10, 5), verifyAccount);
+router.post(
+  "/verify-account",
+  customRateLimiter(10, 5),
+  verifyAccount,
+);
 
 router.post(
   "/resend-verifyaccount-otp",
