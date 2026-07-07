@@ -9,6 +9,7 @@ import {
   forgotPassword,
   resetPassword,
   verifyForgotPasswordOtp,
+  logoutUser,
 } from "../controllers/user.controller.js";
 import { customRateLimiter } from "../middleware/ratelimit.middleware.js";
 import { validateFormData } from "../middleware/formvalidate.middleware.js";
@@ -29,11 +30,7 @@ router.post(
   registerUser,
 );
 
-router.post(
-  "/verify-account",
-  customRateLimiter(10, 5),
-  verifyAccount,
-);
+router.post("/verify-account", customRateLimiter(10, 5), verifyAccount);
 
 router.post(
   "/resend-verifyaccount-otp",
@@ -76,5 +73,7 @@ router.post(
   validateFormData(resetPasswordSchema),
   resetPassword,
 );
+
+router.post("/logout", isAuthenticated, logoutUser);
 
 export default router;

@@ -422,7 +422,8 @@ export const resendForgotPasswordOtp = tryCatchWrapper(
     }
 
     return sendTsRestSuccess(res, 200, {
-      message: "A new password reset OTP and verification link has been sent to your email.",
+      message:
+        "A new password reset OTP and verification link has been sent to your email.",
     });
   },
 );
@@ -533,6 +534,20 @@ export const resetPassword = tryCatchWrapper(
 
     return sendTsRestSuccess(res, 200, {
       message: "Password reset successfully. You can now log in",
+    });
+  },
+);
+
+export const logoutUser = tryCatchWrapper(
+  async (req: Request, res: Response, next: NextFunction) => {
+    req.session.destroy((err) => {
+      if (err) {
+        return sendTsRestError(res, 500, "Could not log out. Please try again");
+      }
+      res.clearCookie("sessionId"); //matches the cookie name in session.ts
+      return sendTsRestSuccess(res, 200, {
+        message: "User logged out successfully",
+      });
     });
   },
 );

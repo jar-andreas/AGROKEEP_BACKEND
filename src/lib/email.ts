@@ -262,7 +262,7 @@ export const sendContactInquiry = async (
             <td style="padding: 6px 0; color: #1F2937;"><a href="mailto:${clientEmail}" style="color: #1E5631; text-decoration: underline;">${clientEmail}</a></td>
           </tr>
           <tr>
-            <td style="padding: 6px 0; font-weight: bold; color: #4B5563;">Phone Number:</td>
+            <td style="padding: 6px 0; font-weight: bold; color: #4B5563;">Phone:</td>
             <td style="padding: 6px 0; color: #1F2937;">${phone || "Not Provided"}</td>
           </tr>
         </table>
