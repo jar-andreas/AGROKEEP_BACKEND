@@ -102,24 +102,36 @@ export const validateContactUsSchema = z.object({
   fullName: z
     .string()
     .trim()
-    .min(2, { message: "Full name must be at least 2 characters" })
-    .max(50, { message: "Full name is too long" }),
+    .regex(/^[a-zA-Z\s]{5,50}$/, {
+      message:
+        "Full name must be 5-50 characters and contain only letters and spaces",
+    }),
+
+  // RFC 5322 standard-ish regex for email
   email: z
     .string()
     .trim()
-    .email({ message: "Invalid email address" })
-    .lowercase(),
+    .regex(/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/, {
+      message: "Please enter a valid email address (e.g., name@domain.com)",
+    }),
+
+  // Strictly enforces E.164 international format (e.g., +2348012345678)
+  // or local format (08012345678)
   phone: z
     .string()
-    .refine(
-      (num) => num === "" || /^\+\d{10,15}$/.test(num),
-      "Invalid phone number",
-    ),
+    .trim()
+    .regex(/^(\+?\d{1,4}?[-.\s]?)?(\(?\d{3}\)?[-.\s]?)?\d{3}[-.\s]?\d{4,6}$/, {
+      message: "Please enter a valid phone number (10-15 digits)",
+    }),
+
+  // Allows alphanumeric + common punctuation, strict length
   message: z
     .string()
     .trim()
-    .min(10, { message: "Message must be at least 10 characters" })
-    .max(1000, { message: "Message cannot exceed 1000 characters" }),
+    .regex(/^[a-zA-Z0-9\s.,!?'"()-]{10,1000}$/, {
+      message:
+        "Message must be 10-1000 characters (alphanumeric and standard punctuation only)",
+    }),
 });
 
 export const resetPasswordSchema = z
