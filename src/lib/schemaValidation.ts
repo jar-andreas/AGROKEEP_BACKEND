@@ -171,6 +171,56 @@ export const resetPasswordSchema = z
     path: ["confirmPassword"], // Targets the error feedback explicitly to the confirmPassword field
   });
 
+//Storage Hub Validations
+
+const jsonArrayCoercion = z.preprocess((val) => {
+  if (!val) return [];
+  if (typeof val === "string") {
+    try {
+      const parsed = JSON.parse(val);
+      return Array.isArray(parsed) ? parsed : [parsed];
+    } catch {
+      return [val]; // Fallback if it's just a regular flat string
+    }
+  }
+  if (Array.isArray(val)) return val;
+  return [val];
+}, z.array(z.string().trim()));
+
+export const createHubValidationSchema = z.object({
+  name: z.string({ message: "Hub name is required" }).trim(),
+  state: z.string({ message: "State is required" }).trim(),
+  lga: z.string({ message: "LGA is required" }).trim(),
+  address: z.string({ message: "Address is required" }).trim(),
+  proximityText: z.string({ message: "Proximity text is required" }).trim(),
+  storageType: z.string({ message: "Storage type is required" }).trim(),
+  operatingHours: z.string().trim().optional(),
+  aboutFacility: z.string().trim().min(20, "Provide a descriptive summary"),
+  
+  // Straightforward number parsing
+  totalCapacity: z.string().transform(Number),
+  availableCapacity: z.string().transform(Number).optional(),
+  unitType: z.string({ message: "Unit type is required" }).trim(),
+
+  // Array Fields
+  supportedCrops: jsonArrayCoercion,
+  features: jsonArrayCoercion,
+  whatsIncluded: jsonArrayCoercion,
+
+  // Standard flat string handling for the remaining fields
+  specStorageMethod: z.string({ message: "Storage method is required" }).trim(),
+  specFacilitySize: z.string({ message: "Facility size is required" }).trim(),
+  specClimateControl: z.string({ message: "Climate control description is required" }).trim(),
+  specSecurity: z.string({ message: "Security description is required" }).trim(),
+  specAccessibility: z.string({ message: "Accessibility details are required" }).trim(),
+  specNearestMajorMarket: z.string({ message: "Nearest major market is required" }).trim(),
+
+  pricePerBagPerWeek50kg: z.string().transform(Number),
+  pricePerCratePerWeek50kg: z.string().transform(Number),
+  priceWeeklyBulk100Plus: z.string().transform(Number),
+  priceMonthly: z.string().transform(Number),
+});
+
 export type SignupInput = z.infer<typeof validateSignupSchema>;
 export type LoginInput = z.infer<typeof ValidateLoginSchema>;
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
@@ -180,3 +230,5 @@ export type VerifyForgotPasswordOtpInput = z.infer<
 >;
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
 export type validateContactUsSchema = z.infer<typeof validateContactUsSchema>;
+
+export type CreateHubInput = z.infer<typeof createHubValidationSchema>;
