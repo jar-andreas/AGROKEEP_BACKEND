@@ -149,3 +149,42 @@ export const getHubsGroupedByState = tryCatchWrapper(
     }
   },
 ); 
+
+export const filterStorageHubs = tryCatchWrapper(
+  async (req: Request, res: Response) => {
+    // 1. Extract query params sent from the frontend FilterCapture component
+    const { locationState, cropType, storageType } = req.query;
+
+    // 2. Dynamically build the Mongoose query object
+    const filterQuery: Record<string, any> = {};
+
+    if (locationState) {
+      // Case-insensitive exact state match
+      filterQuery.state = { $regex: new RegExp(`^${locationState}$`, "i") };
+    }
+
+    if (storageType) {
+      // Case-insensitive storage type match
+      filterQuery.storageType = { $regex: new RegExp(`^${storageType}$`, "i") };
+    }
+
+    if (cropType) {
+      // Searches inside array of supported crops
+      filterQuery.supportedCrops = { $in: [new RegExp(cropType as string, "i")] };
+    }
+
+    // 3. Query database with active filters
+    const hubs = await Hub.find(filterQuery)
+      .select(
+        "name address state lga totalCapacity availableCapacity unitType images storageType supportedCrops pricePerBagPerWeek50kg"
+      )
+      .sort({ createdAt: -1 });
+
+    // 4. Send filtered JSON data back to frontend UI
+    return sendTsRestSuccess(res, 200, {
+      message: "Filtered storage hubs retrieved successfully",
+      count: hubs.length,
+      data: hubs,
+    });
+  }
+);
