@@ -188,38 +188,111 @@ const jsonArrayCoercion = z.preprocess((val) => {
 }, z.array(z.string().trim()));
 
 export const createHubValidationSchema = z.object({
-  name: z.string({ message: "Hub name is required" }).trim(),
-  state: z.string({ message: "State is required" }).trim(),
-  lga: z.string({ message: "LGA is required" }).trim(),
-  address: z.string({ message: "Address is required" }).trim(),
-  proximityText: z.string({ message: "Proximity text is required" }).trim(),
+  // 🔒 String constraints: min lengths to stop 1-letter entries like "A"
+  name: z
+    .string({ message: "Hub name is required" })
+    .trim()
+    .min(3, "Hub name must be at least 3 characters long"),
+
+  state: z
+    .string({ message: "State is required" })
+    .trim()
+    .min(2, "State name must be at least 2 characters"),
+
+  lga: z
+    .string({ message: "LGA is required" })
+    .trim()
+    .min(2, "LGA must be at least 2 characters"),
+
+  address: z
+    .string({ message: "Address is required" })
+    .trim()
+    .min(5, "Please provide a more detailed address (at least 5 characters)"),
+
+  proximityText: z
+    .string({ message: "Proximity text is required" })
+    .trim()
+    .min(3, "Proximity text must be at least 3 characters"),
+
   storageType: z.string({ message: "Storage type is required" }).trim(),
+
   operatingHours: z.string().trim().optional(),
-  aboutFacility: z.string().trim().min(20, "Provide a descriptive summary"),
-  
-  // Straightforward number parsing
-  totalCapacity: z.string().transform(Number),
-  availableCapacity: z.string().transform(Number).optional(),
+
+  aboutFacility: z
+    .string({ message: "Facility description is required" })
+    .trim()
+    .min(20, "Facility description must be at least 20 characters long"),
+
+  // 🔒 Strict Capacity checks: Must be positive numbers (> 0)
+  totalCapacity: z.coerce
+    .number({ message: "Total capacity must be a valid number" })
+    .positive("Total capacity must be greater than 0"),
+
+  availableCapacity: z.coerce
+    .number({ message: "Available capacity must be a valid number" })
+    .nonnegative("Available capacity cannot be negative")
+    .optional(),
+
   unitType: z.string({ message: "Unit type is required" }).trim(),
+
+  rating: z.coerce.number().min(0).max(5).optional(),
+  reviewCount: z.coerce.number().nonnegative().optional(),
 
   // Array Fields
   supportedCrops: jsonArrayCoercion,
   features: jsonArrayCoercion,
   whatsIncluded: jsonArrayCoercion,
 
-  // Standard flat string handling for the remaining fields
-  specStorageMethod: z.string({ message: "Storage method is required" }).trim(),
-  specFacilitySize: z.string({ message: "Facility size is required" }).trim(),
-  specClimateControl: z.string({ message: "Climate control description is required" }).trim(),
-  specSecurity: z.string({ message: "Security description is required" }).trim(),
-  specAccessibility: z.string({ message: "Accessibility details are required" }).trim(),
-  specNearestMajorMarket: z.string({ message: "Nearest major market is required" }).trim(),
+  // Spec Fields (with minimum character checks)
+  specStorageMethod: z
+    .string({ message: "Storage method is required" })
+    .trim()
+    .min(3, "Storage method details too short"),
 
-  pricePerBagPerWeek50kg: z.string().transform(Number),
-  pricePerCratePerWeek50kg: z.string().transform(Number),
-  priceWeeklyBulk100Plus: z.string().transform(Number),
-  priceMonthly: z.string().transform(Number),
+  specFacilitySize: z
+    .string({ message: "Facility size is required" })
+    .trim()
+    .min(2, "Facility size details too short"),
+
+  specClimateControl: z
+    .string({ message: "Climate control description is required" })
+    .trim()
+    .min(3, "Climate control details too short"),
+
+  specSecurity: z
+    .string({ message: "Security description is required" })
+    .trim()
+    .min(3, "Security details too short"),
+
+  specAccessibility: z
+    .string({ message: "Accessibility details are required" })
+    .trim()
+    .min(3, "Accessibility details too short"),
+
+  specNearestMajorMarket: z
+    .string({ message: "Nearest major market is required" })
+    .trim()
+    .min(3, "Market name too short"),
+
+  // 🔒 Pricing checks: Cannot be negative
+  pricePerBagPerWeek50kg: z.coerce
+    .number({ message: "Price must be a number" })
+    .nonnegative("Price cannot be negative"),
+
+  pricePerCratePerWeek50kg: z.coerce
+    .number({ message: "Price must be a number" })
+    .nonnegative("Price cannot be negative"),
+
+  priceWeeklyBulk100Plus: z.coerce
+    .number({ message: "Price must be a number" })
+    .nonnegative("Price cannot be negative"),
+
+  priceMonthly: z.coerce
+    .number({ message: "Price must be a number" })
+    .nonnegative("Price cannot be negative"),
 });
+
+export const updateHubValidationSchema = createHubValidationSchema.partial();
 
 export type SignupInput = z.infer<typeof validateSignupSchema>;
 export type LoginInput = z.infer<typeof ValidateLoginSchema>;
