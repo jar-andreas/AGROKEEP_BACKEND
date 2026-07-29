@@ -165,9 +165,21 @@ export const getSingleHubBySlug = tryCatchWrapper(
     if (!hub) {
       return sendTsRestError(res, 404, "Storage Hub not found");
     }
+
+    // Fetch 3 similar hubs in the same state (excluding current hub)
+    const similarHubs = await Hub.find({
+      state: hub.state,
+      _id: { $ne: hub._id },
+    })
+      .select(
+        "name state lga totalCapacity availableCapacity unitType images storageType pricePerBagPerWeek50kg rating reviewCount isVerified slug",
+      )
+      .limit(3)
+      .lean();
+
     return sendTsRestSuccess(res, 200, {
       message: "Storage Hub details retrieved successfully",
-      data: hub,
+      data: { ...hub, similarFacilities: similarHubs },
     });
   },
 );
@@ -240,7 +252,15 @@ const escapeRegex = (text: string) =>
 export const filterStorageHubs = tryCatchWrapper(
   async (req: Request, res: Response) => {
     // 1. Extract query params sent from the frontend FilterCapture component
-    const { locationState, cropType, storageType } = req.query;
+    const {
+      locationState,
+      lga,
+      minCapacity,
+      availableOnly,
+      maxPrice,
+      cropType,
+      storageType,
+    } = req.query;
 
     // 2. Dynamically build the Mongoose query object
     const filterQuery: Record<string, any> = {};
