@@ -27,11 +27,11 @@ router.post(
   createStorageHub,
 );
 
-router.get("/grouped-by-state", isAuthenticated, getHubsGroupedByState);
+router.get("/grouped-by-state", getHubsGroupedByState);
 
-router.get("/all", isAuthenticated, getAllStorageHubs);
+router.get("/all", getAllStorageHubs);
 
-router.get("/filter", isAuthenticated, filterStorageHubs);
+router.get("/filter", filterStorageHubs);
 
 router.patch(
   "/:id",
@@ -41,9 +41,8 @@ router.patch(
   updateStorageHub,
 );
 
-
 router.delete("/:id", isAdmin, isAuthenticated, deleteStorageHub);
 
-router.get("/:slug", isAuthenticated, getSingleHubBySlug);
+router.get("/:slug", getSingleHubBySlug);
 
 export default router;

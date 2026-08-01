@@ -287,3 +287,167 @@ export const sendContactInquiry = async (
     textContent: `New message from ${fullName} (${clientEmail}): ${message}`,
   });
 };
+
+export const sendBookingCreatedEmail = async (
+  to: string,
+  toName: string,
+  bookingId: string,
+  cropType: string,
+  quantity: number,
+  unitType: string,
+  depositAmount: number,
+  totalAmount: number,
+): Promise<boolean> => {
+  const htmlContent = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+        <title>Booking Confirmation</title>
+      </head>
+      <body style="margin:0;padding:0;background-color:#f8fafc;font-family:Arial,sans-serif;">
+        <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f8fafc;padding:40px 0;">
+          <tr>
+            <td align="center">
+              <table width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,0.03);border:1px solid #e2e8f0;">
+                <tr>
+                  <td style="background-color:#15803D;padding:36px 40px;text-align:center;">
+                    <h1 style="color:#ffffff;margin:0;font-size:28px;letter-spacing:1px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">Agro<span style="color:#F59E0B;">Keep</span></h1>
+                    <p style="color:#dcfce7;margin:6px 0 0;font-size:12px;letter-spacing:2px;text-transform:uppercase;">Booking Initiated</p>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:40px;background-color:#ffffff;">
+                    <h2 style="color:#1e293b;margin:0 0 16px;font-size:20px;font-weight:700;">Booking Reserved! 🌾</h2>
+                    <p style="color:#475569;font-size:15px;line-height:1.6;margin:0 0 24px;">
+                      Hi <strong>${toName}</strong>, your storage space booking request has been successfully recorded. Below are your booking details:
+                    </p>
+                    
+                    <div style="background-color:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:20px;margin-bottom:24px;">
+                      <table width="100%" cellpadding="6" cellspacing="0">
+                        <tr>
+                          <td style="color:#475569;font-size:14px;font-weight:bold;">Booking ID:</td>
+                          <td align="right" style="color:#15803D;font-size:15px;font-weight:bold;font-family:monospace;">${bookingId}</td>
+                        </tr>
+                        <tr>
+                          <td style="color:#475569;font-size:14px;font-weight:bold;">Crop Type:</td>
+                          <td align="right" style="color:#1e293b;font-size:14px;">${cropType}</td>
+                        </tr>
+                        <tr>
+                          <td style="color:#475569;font-size:14px;font-weight:bold;">Quantity:</td>
+                          <td align="right" style="color:#1e293b;font-size:14px;">${quantity} ${unitType}</td>
+                        </tr>
+                        <tr>
+                          <td style="color:#475569;font-size:14px;font-weight:bold;">Total Amount:</td>
+                          <td align="right" style="color:#1e293b;font-size:14px;font-weight:bold;">₦${totalAmount.toLocaleString()} NGN</td>
+                        </tr>
+                        <tr>
+                          <td style="color:#15803D;font-size:14px;font-weight:bold;">Initial Deposit Required (30%):</td>
+                          <td align="right" style="color:#15803D;font-size:16px;font-weight:bold;">₦${depositAmount.toLocaleString()} NGN</td>
+                        </tr>
+                      </table>
+                    </div>
+
+                    <p style="color:#475569;font-size:14px;line-height:1.6;margin:0;">
+                      To secure your storage slot, please proceed with paying the 30% deposit if you haven't completed it yet.
+                    </p>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="background-color:#f8fafc;padding:24px 40px;text-align:center;border-top:1px solid #f1f5f9;">
+                    <p style="color:#94a3b8;font-size:12px;margin:0;">&copy; ${new Date().getFullYear()} AgroKeep Ecosystems. All rights reserved.</p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </body>
+    </html>
+  `;
+
+  return sendEmail({
+    to,
+    toName,
+    subject: `AgroKeep Booking Created [${bookingId}]`,
+    htmlContent,
+    textContent: `Hi ${toName}, your booking ${bookingId} for ${quantity} ${unitType} of ${cropType} has been created. Total Deposit Required: ₦${depositAmount.toLocaleString()} NGN.`,
+  });
+};
+
+export const sendPaymentSuccessEmail = async (
+  to: string,
+  toName: string,
+  amount: number,
+  reference: string,
+): Promise<boolean> => {
+  const htmlContent = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+        <title>Payment Confirmation</title>
+      </head>
+      <body style="margin:0;padding:0;background-color:#f8fafc;font-family:Arial,sans-serif;">
+        <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f8fafc;padding:40px 0;">
+          <tr>
+            <td align="center">
+              <table width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,0.03);border:1px solid #e2e8f0;">
+                <tr>
+                  <td style="background-color:#15803D;padding:36px 40px;text-align:center;">
+                    <h1 style="color:#ffffff;margin:0;font-size:28px;letter-spacing:1px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">Agro<span style="color:#F59E0B;">Keep</span></h1>
+                    <p style="color:#dcfce7;margin:6px 0 0;font-size:12px;letter-spacing:2px;text-transform:uppercase;">Payment Confirmation</p>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:40px;background-color:#ffffff;">
+                    <h2 style="color:#1e293b;margin:0 0 16px;font-size:20px;font-weight:700;">Payment Received! 🎉</h2>
+                    <p style="color:#475569;font-size:15px;line-height:1.6;margin:0 0 24px;">
+                      Hi <strong>${toName}</strong>, thank you for your deposit! We have successfully processed your payment and confirmed your storage space booking.
+                    </p>
+                    
+                    <div style="background-color:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:20px;margin-bottom:24px;">
+                      <table width="100%" cellpadding="6" cellspacing="0">
+                        <tr>
+                          <td style="color:#166534;font-size:14px;font-weight:bold;">Amount Paid:</td>
+                          <td align="right" style="color:#15803D;font-size:16px;font-weight:bold;">₦${amount.toLocaleString()} NGN</td>
+                        </tr>
+                        <tr>
+                          <td style="color:#166534;font-size:14px;font-weight:bold;">Transaction Reference:</td>
+                          <td align="right" style="color:#334155;font-size:14px;font-family:monospace;">${reference}</td>
+                        </tr>
+                        <tr>
+                          <td style="color:#166534;font-size:14px;font-weight:bold;">Status:</td>
+                          <td align="right" style="color:#15803D;font-size:14px;font-weight:bold;">Successful</td>
+                        </tr>
+                      </table>
+                    </div>
+
+                    <p style="color:#475569;font-size:14px;line-height:1.6;margin:0;">
+                      You can log into your AgroKeep dashboard at any time to inspect your booking details, track duration remaining, or manage drop-off dates.
+                    </p>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="background-color:#f8fafc;padding:24px 40px;text-align:center;border-top:1px solid #f1f5f9;">
+                    <p style="color:#94a3b8;font-size:12px;margin:0;">&copy; ${new Date().getFullYear()} AgroKeep Ecosystems. All rights reserved.</p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </body>
+    </html>
+  `;
+
+  return sendEmail({
+    to,
+    toName,
+    subject: `AgroKeep Payment Confirmation [${reference}]`,
+    htmlContent,
+    textContent: `Hi ${toName}, your payment of ₦${amount.toLocaleString()} NGN (Ref: ${reference}) for your AgroKeep booking was confirmed successfully!`,
+  });
+};

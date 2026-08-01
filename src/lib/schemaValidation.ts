@@ -292,6 +292,60 @@ export const createHubValidationSchema = z.object({
     .nonnegative("Price cannot be negative"),
 });
 
+export const createBookingSchema = z.object({
+  hubId: z.string().min(1, "Storage Hub ID is required"),
+  selectedCrop: z.string().min(1, "Please select a crop to proceed"),
+  quantity: z.coerce.number().min(1, "Quantity must be at least 1"),
+  unitType: z.enum(["bags", "crates"]).default("bags"),
+  durationInDays: z.coerce.number().min(1, "Duration must be at least 1 day"),
+  dropOffDate: z
+    .string()
+    .refine(
+      (dateString) => {
+        const selectedDate = new Date(dateString);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        return !isNaN(selectedDate.getTime()) && selectedDate >= today;
+      },
+      { message: "Drop-off date must be a valid present or future date" },
+    )
+    .refine(
+      (dateString) => {
+        const date = new Date(dateString);
+        // getUTCDay(): 0 = Sunday
+        return date.getUTCDay() !== 0;
+      },
+      {
+        message:
+          "Facilities are closed on Sundays. Please pick a Monday - Saturday date.",
+      },
+    ),
+  fullName: z.string().min(1, "Full name is required").trim(),
+  phoneNumber: z
+    .string()
+    .min(1, "Phone number is required")
+    .regex(
+      /^(\+?234|0)[789][01]\d{8}$/,
+      "Please enter a valid phone number (e.g., +234... or 080...)",
+    ),
+  email: z
+    .string()
+    .email("Please enter a valid email address")
+    .optional()
+    .or(z.literal("")),
+  specialInstructions: z.string().optional(),
+});
+
+export const initializePaymentSchema = z.object({
+  bookingId: z.string().min(1, "Booking ID is required"),
+  hubId: z.string().optional(),
+  slug: z.string().min(1, "Slug is required for payment callback routing"),
+});
+
+export const verifyPaymentSchema = z.object({
+  reference: z.string().min(1, "Reference query paramter is required"),
+});
+
 export const updateHubValidationSchema = createHubValidationSchema.partial();
 
 export type SignupInput = z.infer<typeof validateSignupSchema>;
@@ -305,3 +359,4 @@ export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
 export type validateContactUsSchema = z.infer<typeof validateContactUsSchema>;
 
 export type CreateHubInput = z.infer<typeof createHubValidationSchema>;
+export type CreateBookingInput = z.infer<typeof createBookingSchema>;
