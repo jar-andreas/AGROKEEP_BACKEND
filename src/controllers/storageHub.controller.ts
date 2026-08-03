@@ -152,9 +152,9 @@ export const getHubsGroupedByState = tryCatchWrapper(
         message: "Hubs grouped by state retrieved successfully",
         data: formattedData,
       });
-    }
-  },
+    },
 );
+
 
 export const filterStorageHubs = tryCatchWrapper(
   async (req: Request, res: Response) => {
