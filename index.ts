@@ -17,6 +17,8 @@ import userRoutes from "./src/routes/user.routes.js";
 import authRoutes from "./src/routes/googleAuth.route.js";
 import contactRoutes from "./src/routes/contactUs.route.js";
 import hubRoutes from "./src/routes/storageHub.route.js";
+import bookingRoutes from "./src/routes/booking.route.js";
+import paymentRoutes from "./src/routes/payment.route.js";
 
 declare global {
   namespace Express {
@@ -125,6 +127,8 @@ app.use("/api/v1/user", userRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/v1/contact-us", contactRoutes);
 app.use("/api/v1/hub", hubRoutes);
+app.use("/api/v1/booking", bookingRoutes);
+app.use("/api/v1/payment", paymentRoutes);
 
 // Handle 404
 app.use(notFoundRoutes);

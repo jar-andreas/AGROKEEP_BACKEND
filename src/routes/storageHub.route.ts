@@ -1,10 +1,18 @@
 import { Router } from "express";
 import {
   createStorageHub,
+  deleteStorageHub,
+  filterStorageHubs,
+  getAllStorageHubs,
   getHubsGroupedByState,
+  getSingleHubBySlug,
+  updateStorageHub,
 } from "../controllers/storageHub.controller.js";
 import { validateFormData } from "../middleware/formvalidate.middleware.js";
-import { createHubValidationSchema } from "../lib/schemaValidation.js";
+import {
+  createHubValidationSchema,
+  updateHubValidationSchema,
+} from "../lib/schemaValidation.js";
 import { uploadMemoryParser } from "../services/cloudinary.service.js";
 import { isAdmin, isAuthenticated } from "../middleware/auth.middleware.js";
 
@@ -19,6 +27,22 @@ router.post(
   createStorageHub,
 );
 
-router.get("/grouped-by-state", isAuthenticated, getHubsGroupedByState);
+router.get("/grouped-by-state", getHubsGroupedByState);
+
+router.get("/all", getAllStorageHubs);
+
+router.get("/filter", filterStorageHubs);
+
+router.patch(
+  "/:id",
+  isAdmin,
+  isAuthenticated,
+  validateFormData(updateHubValidationSchema),
+  updateStorageHub,
+);
+
+router.delete("/:id", isAdmin, isAuthenticated, deleteStorageHub);
+
+router.get("/:slug", getSingleHubBySlug);
 
 export default router;

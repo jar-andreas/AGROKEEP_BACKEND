@@ -27,6 +27,7 @@ const ENV_VARS: Envspec[] = [
   { key: "CLOUDINARY_CLOUD_NAME", required: true },
   { key: "CLOUDINARY_API_KEY", required: true },
   { key: "CLOUDINARY_API_SECRET", required: true },
+  { key: "PAYSTACK_SECRET_KEY", required: true },
 ];
 
 interface Env {

@@ -1,4 +1,5 @@
 import { ZodError } from "zod";
+import { z } from "zod";
 import { NextFunction, Request, Response } from "express";
 import { logError } from "../config/logger.js";
 
@@ -25,3 +26,29 @@ export const validateFormData =
       next(error);
     }
   };
+
+export const validateQueryParams = (schema: z.ZodSchema) => {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const result = schema.safeParse(req.query);
+
+      if (!result.success) {
+        logError(
+          new Error("Validation failed"),
+          "Query parameter validation failed",
+        );
+
+        return res.status(400).json({
+          success: false,
+          message: "Validation failed",
+          errors: result.error.issues,
+        });
+      }
+
+      return next();
+    } catch (error: any) {
+      logError(error, "Unhandled exception in query validation middleware");
+      return next(error);
+    }
+  };
+};

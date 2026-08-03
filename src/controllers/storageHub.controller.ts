@@ -18,6 +18,8 @@ export const createStorageHub = tryCatchWrapper(
       totalCapacity,
       availableCapacity,
       unitType,
+      rating,
+      reviewCount,
       supportedCrops,
       features,
       whatsIncluded,
@@ -48,7 +50,7 @@ export const createStorageHub = tryCatchWrapper(
     const existingHub = await Hub.findOne({
       name: { $regex: new RegExp(`^${name}$`, "i") },
       address: { $regex: new RegExp(`^${address}$`, "i") },
-    });
+    }).lean();
 
     if (existingHub) {
       return sendTsRestError(
@@ -89,6 +91,8 @@ export const createStorageHub = tryCatchWrapper(
       availableCapacity: available,
       unitType,
       supportedCrops,
+      rating,
+      reviewCount,
       features,
       whatsIncluded,
       specStorageMethod,
@@ -120,7 +124,8 @@ export const getHubsGroupedByState = tryCatchWrapper(
       .select(
         "name address state lga totalCapacity availableCapacity unitType images storageType isVerified pricePerCratePerWeek50kg pricePerBagPerWeek50kg",
       )
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .lean();
 
     //map dictionary to collect states
     const stateGroups: { [key: string]: any[] } = {};
@@ -136,11 +141,12 @@ export const getHubsGroupedByState = tryCatchWrapper(
       if (stateGroups[stateName].length < 4) {
         stateGroups[stateName].push(hub);
       }
-      //format into a clean array structure for frontend mapping
-      const formattedData = Object.keys(stateGroups).map((state) => ({
-        state: state,
-        hubs: stateGroups[state],
-      }));
+    }
+    //format into a clean array structure for frontend mapping
+    const formattedData = Object.keys(stateGroups).map((state) => ({
+      state: state,
+      hubs: stateGroups[state],
+    }));
 
       return sendTsRestSuccess(res, 200, {
         message: "Hubs grouped by state retrieved successfully",
@@ -148,7 +154,7 @@ export const getHubsGroupedByState = tryCatchWrapper(
       });
     }
   },
-); 
+);
 
 export const filterStorageHubs = tryCatchWrapper(
   async (req: Request, res: Response) => {
