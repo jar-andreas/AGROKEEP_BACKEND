@@ -1,18 +1,24 @@
 import { Router } from "express";
-import * as profilecontroller from "../controllers/profile.controller.js";
+// import controller members via require to avoid strict named-export checks
+const profileController: any = require("../controllers/profile.controller.js");
 import { isAuthenticated } from "../middleware/auth.middleware.js";
 
 const router = Router();
 
+// Protect all profile endpoints with auth middleware
 router.use(isAuthenticated);
 
-// Get Profile Page Data
-router.get("/overview", profilecontroller.getProfileOverview);
+// Individual profile routes
+router.get("/overview", profileController.getProfileOverview);
+router.patch("/personal-info", profileController.updatePersonalInfo);
+router.patch("/notification-preferences", profileController.updateNotificationPreferences);
+router.patch("/change-password", profileController.changePassword);
 
-// Save All Changes (Combined endpoint)
-router.put("/save-all", profilecontroller.updateAllProfileSettings);
+// Combined save route
 
-// Logout User
-router.post("/logout", profilecontroller.logoutUser);
+// Logout route
+router.put("/save-all", profileController.updateAllProfileSettings);
+
+router.post("/logout", profileController.logoutUser);
 
 export default router;
