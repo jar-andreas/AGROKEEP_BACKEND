@@ -19,6 +19,7 @@ import contactRoutes from "./src/routes/contactUs.route.js";
 import hubRoutes from "./src/routes/storageHub.route.js";
 import bookingRoutes from "./src/routes/booking.route.js";
 import paymentRoutes from "./src/routes/payment.route.js";
+import profileRoutes from "src/routes/profile.routes.js";
 
 declare global {
   namespace Express {
@@ -129,6 +130,7 @@ app.use("/api/v1/contact-us", contactRoutes);
 app.use("/api/v1/hub", hubRoutes);
 app.use("/api/v1/booking", bookingRoutes);
 app.use("/api/v1/payment", paymentRoutes);
+app.use("/api/v1/profile", profileRoutes);
 
 // Handle 404
 app.use(notFoundRoutes);
