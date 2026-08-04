@@ -292,49 +292,87 @@ export const createHubValidationSchema = z.object({
     .nonnegative("Price cannot be negative"),
 });
 
-export const createBookingSchema = z.object({
-  hubId: z.string().min(1, "Storage Hub ID is required"),
-  selectedCrop: z.string().min(1, "Please select a crop to proceed"),
-  quantity: z.coerce.number().min(1, "Quantity must be at least 1"),
-  unitType: z.enum(["bags", "crates"]).default("bags"),
-  durationInDays: z.coerce.number().min(1, "Duration must be at least 1 day"),
-  dropOffDate: z
-    .string()
-    .refine(
-      (dateString) => {
-        const selectedDate = new Date(dateString);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        return !isNaN(selectedDate.getTime()) && selectedDate >= today;
-      },
-      { message: "Drop-off date must be a valid present or future date" },
-    )
-    .refine(
-      (dateString) => {
-        const date = new Date(dateString);
-        // getUTCDay(): 0 = Sunday
-        return date.getUTCDay() !== 0;
-      },
-      {
-        message:
-          "Facilities are closed on Sundays. Please pick a Monday - Saturday date.",
-      },
-    ),
-  fullName: z.string().min(1, "Full name is required").trim(),
-  phoneNumber: z
-    .string()
-    .min(1, "Phone number is required")
-    .regex(
-      /^(\+?234|0)[789][01]\d{8}$/,
-      "Please enter a valid phone number (e.g., +234... or 080...)",
-    ),
-  email: z
-    .string()
-    .email("Please enter a valid email address")
-    .optional()
-    .or(z.literal("")),
-  specialInstructions: z.string().optional(),
-});
+export const createBookingSchema = z
+  .object({
+    hubId: z.string().min(1, "Storage Hub ID is required"),
+    selectedCrop: z.string().min(1, "Please select a crop to proceed"),
+    quantity: z.coerce.number().min(1, "Quantity must be at least 1"),
+    unitType: z.enum(["bags", "crates"]).default("bags"),
+
+    // 🗓️ Drop-off Date Validation
+    dropOffDate: z
+      .string()
+      .refine(
+        (dateString) => {
+          const selectedDate = new Date(dateString);
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          return !isNaN(selectedDate.getTime()) && selectedDate >= today;
+        },
+        { message: "Drop-off date must be a valid present or future date" },
+      )
+      .refine(
+        (dateString) => {
+          const date = new Date(dateString);
+          // getUTCDay(): 0 = Sunday
+          return date.getUTCDay() !== 0;
+        },
+        {
+          message:
+            "Facilities are closed on Sundays. Please pick a Monday - Saturday drop-off date.",
+        },
+      ),
+
+    // 🗓️ Pick-up Date Validation (Replaces durationInDays)
+    pickUpDate: z
+      .string()
+      .refine(
+        (dateString) => {
+          const selectedDate = new Date(dateString);
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          return !isNaN(selectedDate.getTime()) && selectedDate >= today;
+        },
+        { message: "Pick-up date must be a valid present or future date" },
+      )
+      .refine(
+        (dateString) => {
+          const date = new Date(dateString);
+          return date.getUTCDay() !== 0;
+        },
+        {
+          message:
+            "Facilities are closed on Sundays. Please pick a Monday - Saturday pick-up date.",
+        },
+      ),
+
+    fullName: z.string().min(1, "Full name is required").trim(),
+    phoneNumber: z
+      .string()
+      .min(1, "Phone number is required")
+      .regex(
+        /^(\+?234|0)[789][01]\d{8}$/,
+        "Please enter a valid phone number (e.g., +234... or 080...)",
+      ),
+    email: z
+      .string()
+      .email("Please enter a valid email address")
+      .optional()
+      .or(z.literal("")),
+    specialInstructions: z.string().optional(),
+  })
+  // 🔗 Cross-field Validation: Ensure Pick-up is AFTER Drop-off
+  .refine(
+    (data) => {
+      const dropOff = new Date(data.dropOffDate);
+      const pickUp = new Date(data.pickUpDate);
+      return pickUp > dropOff;
+    },
+    {
+      message: "Pick-up date must be at least 1 day after the drop-off date",
+      path: ["pickUpDate"], // Attaches error directly to pickUpDate in frontend forms
+    },
+  );
 
 export const initializePaymentSchema = z.object({
   bookingId: z.string().min(1, "Booking ID is required"),

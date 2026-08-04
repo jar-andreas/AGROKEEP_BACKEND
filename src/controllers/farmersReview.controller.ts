@@ -16,7 +16,8 @@ export const createHubReview = tryCatchWrapper(
       valueRating,
     } = req.body;
 
-    const userId = (req as any).user._id;
+    const userId =
+      (req.session as any)?.user?._id || (req.session as any)?.userId;
 
     // 1. Verify the hub exists
     const hub = await Hub.findById(hubId);

@@ -8,6 +8,7 @@ export interface IBooking extends Document {
   quantity: number;
   unitType: string;
   dropOffDate: Date;
+  pickUpDate: Date;
   durationInDays: number;
 
   //contact details
@@ -28,7 +29,7 @@ export interface IBooking extends Document {
   bookingStatus:
     | "pending"
     | "confirmed"
-    | "checked_in"
+    | "in_storage"
     | "completed"
     | "cancelled";
   paymentStatus:
@@ -49,6 +50,7 @@ const BookingSchema = new Schema<IBooking>(
     quantity: { type: Number, required: true },
     unitType: { type: String, default: "bags" },
     dropOffDate: { type: Date, required: true },
+    pickUpDate: { type: Date, required: true },
     durationInDays: { type: Number, required: true },
     fullName: { type: String, required: true },
     phoneNumber: { type: String, required: true },
@@ -64,7 +66,7 @@ const BookingSchema = new Schema<IBooking>(
 
     bookingStatus: {
       type: String,
-      enum: ["pending", "confirmed", "checked_in", "completed", "cancelled"],
+      enum: ["pending", "confirmed", "in_storage", "completed", "cancelled"],
       default: "pending",
     },
     paymentStatus: {

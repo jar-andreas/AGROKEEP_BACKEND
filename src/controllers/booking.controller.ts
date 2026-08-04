@@ -22,8 +22,7 @@ export const createBooking = tryCatchWrapper(
       quantity,
       unitType,
       dropOffDate,
-      durationInDays,
-      durationInWeeks,
+      pickUpDate,
       fullName,
       phoneNumber,
       email,
@@ -60,15 +59,19 @@ export const createBooking = tryCatchWrapper(
       );
     }
 
-    // 3. SERVER-SIDE CALCULATION (Prevents client-side price tampering)
-    const totalDays = durationInDays
-      ? Number(durationInDays)
-      : Number(durationInWeeks) * 7;
+    // 🗓️ Calculate duration in days directly from dates
+    const start = new Date(dropOffDate).getTime();
+    const end = new Date(pickUpDate).getTime();
+    const diffTime = end - start;
+    const totalDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-    if (!totalDays || totalDays < 1) {
-      return sendTsRestError(res, 400, "Please provide a valid duration");
+    if (totalDays < 1) {
+      return sendTsRestError(
+        res,
+        400,
+        "Pick-up date must be at least 1 day after drop-off date",
+      );
     }
-
     //calculate pricing
 
     const isCrate = unitType === "crates";
@@ -116,6 +119,7 @@ export const createBooking = tryCatchWrapper(
       quantity: Number(quantity),
       unitType: unitType || "bags",
       dropOffDate: new Date(dropOffDate),
+      pickUpDate: new Date(pickUpDate),
       durationInDays: totalDays,
       fullName,
       phoneNumber,
@@ -133,12 +137,14 @@ export const createBooking = tryCatchWrapper(
     const recipientEmail = booking.email || req.body.email;
     if (recipientEmail) {
       sendBookingCreatedEmail(
-        booking.email,
+        recipientEmail,
         booking.fullName || "Agrokeep Customer",
         booking.bookingId,
         booking.cropType,
         booking.quantity,
         booking.unitType,
+        booking.dropOffDate,
+        booking.pickUpDate,
         booking.depositAmount,
         booking.totalAmount,
       ).catch((err) => {
@@ -157,6 +163,7 @@ export const createBooking = tryCatchWrapper(
           depositAmount,
           balanceAmount,
           totalAmount,
+          durationInDays: totalDays,
         },
       },
     });

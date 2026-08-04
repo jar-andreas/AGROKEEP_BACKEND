@@ -295,9 +295,22 @@ export const sendBookingCreatedEmail = async (
   cropType: string,
   quantity: number,
   unitType: string,
+  dropOffDate: Date,
+  pickUpDate: Date,
   depositAmount: number,
   totalAmount: number,
 ): Promise<boolean> => {
+  const formattedDropOff = new Date(dropOffDate).toLocaleDateString("en-NG", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+  const formattedPickUp = new Date(pickUpDate).toLocaleDateString("en-NG", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+
   const htmlContent = `
     <!DOCTYPE html>
     <html>
@@ -314,7 +327,7 @@ export const sendBookingCreatedEmail = async (
                 <tr>
                   <td style="background-color:#15803D;padding:36px 40px;text-align:center;">
                     <h1 style="color:#ffffff;margin:0;font-size:28px;letter-spacing:1px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">Agro<span style="color:#F59E0B;">Keep</span></h1>
-                    <p style="color:#dcfce7;margin:6px 0 0;font-size:12px;letter-spacing:2px;text-transform:uppercase;">Booking Initiated</p>
+                    <p style="color:#dcfce7;margin:6px 0 0;font-size:12px;letter-spacing:2px;text-transform:uppercase;">Booking Initialized</p>
                   </td>
                 </tr>
                 <tr>
@@ -337,6 +350,14 @@ export const sendBookingCreatedEmail = async (
                         <tr>
                           <td style="color:#475569;font-size:14px;font-weight:bold;">Quantity:</td>
                           <td align="right" style="color:#1e293b;font-size:14px;">${quantity} ${unitType}</td>
+                        </tr>
+                        <tr>
+                          <td style="color:#475569;font-size:14px;font-weight:bold;">Drop-off Date:</td>
+                          <td align="right" style="color:#1e293b;font-size:14px;">${formattedDropOff}</td>
+                        </tr>
+                        <tr>
+                          <td style="color:#475569;font-size:14px;font-weight:bold;">Pick-up Date:</td>
+                          <td align="right" style="color:#1e293b;font-size:14px;">${formattedPickUp}</td>
                         </tr>
                         <tr>
                           <td style="color:#475569;font-size:14px;font-weight:bold;">Total Amount:</td>
@@ -372,7 +393,7 @@ export const sendBookingCreatedEmail = async (
     toName,
     subject: `AgroKeep Booking Created [${bookingId}]`,
     htmlContent,
-    textContent: `Hi ${toName}, your booking ${bookingId} for ${quantity} ${unitType} of ${cropType} has been created. Total Deposit Required: ₦${depositAmount.toLocaleString()} NGN.`,
+    textContent: `Hi ${toName}, your booking ${bookingId} for ${quantity} ${unitType} of ${cropType} has been created. Drop-off: ${formattedDropOff}, Pick-up: ${formattedPickUp}. Total Deposit Required: ₦${depositAmount.toLocaleString()} NGN.`,
   });
 };
 
