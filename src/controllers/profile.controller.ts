@@ -122,3 +122,15 @@ export const logoutUser = tryCatchWrapper(async (req: Request, res: Response) =>
 export function getProfileOverview(arg0: string, getProfileOverview: any) {
     throw new Error("Function not implemented.");
 }
+export function updatePersonalInfo(arg0: string, updatePersonalInfo: any) {
+    throw new Error("Function not implemented.");
+}
+
+export function updateNotificationPreferences(arg0: string, updateNotificationPreferences: any) {
+    throw new Error("Function not implemented.");
+}
+
+export function changePassword(arg0: string, changePassword: any) {
+    throw new Error("Function not implemented.");
+}
+

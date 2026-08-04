@@ -1,6 +1,6 @@
 import { Router } from "express";
-// import controller members via require to avoid strict named-export checks
-const profileController: any = require("../controllers/profile.controller.js");
+// import all named controller exports as a single object
+import * as profileController from "../controllers/profile.controller.js";
 import { isAuthenticated } from "../middleware/auth.middleware.js";
 
 const router = Router();
