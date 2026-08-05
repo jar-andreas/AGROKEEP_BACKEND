@@ -26,10 +26,10 @@ export interface IHub extends Document {
   specNearestMajorMarket: string;
 
   // Flattened Pricing Details
-  pricePerBagPerWeek50kg: number;
-  pricePerCratePerWeek50kg: number;
-  priceWeeklyBulk100Plus: number;
-  priceMonthly: number;
+  pricePerBagPerDay50kg: number;
+  pricePerCratePerDay50kg: number;
+  priceDailyBulk100Plus: number;
+  priceWeeklyFlat: number;
 
   // Administrative Fields
   rating: number;
@@ -68,10 +68,10 @@ const StorageHubSchema = new Schema<IHub>(
     specNearestMajorMarket: { type: String, required: true },
 
     // Flattened Pricing
-    pricePerBagPerWeek50kg: { type: Number, required: true, default: 0 },
-    pricePerCratePerWeek50kg: { type: Number, required: true, default: 0 },
-    priceWeeklyBulk100Plus: { type: Number, required: true, default: 0 },
-    priceMonthly: { type: Number, required: true, default: 0 },
+    pricePerBagPerDay50kg: { type: Number, required: true, default: 0 },
+    pricePerCratePerDay50kg: { type: Number, required: true, default: 0 },
+    priceDailyBulk100Plus: { type: Number, required: true, default: 0 },
+    priceWeeklyFlat: { type: Number, required: true, default: 0 },
 
     // Admin Fields Added & Defined
     rating: { type: Number, default: 0 },

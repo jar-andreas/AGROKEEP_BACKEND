@@ -29,10 +29,10 @@ export const createStorageHub = tryCatchWrapper(
       specSecurity,
       specAccessibility,
       specNearestMajorMarket,
-      pricePerBagPerWeek50kg,
-      pricePerCratePerWeek50kg,
-      priceWeeklyBulk100Plus,
-      priceMonthly,
+      pricePerBagPerDay50kg,
+      pricePerCratePerDay50kg,
+      priceDailyBulk100Plus,
+      priceWeeklyFlat,
       //rating, reviewCount, and isVerified are left out here as per user configuration
     } = req.body;
     const files = req.files as Express.Multer.File[];
@@ -101,10 +101,10 @@ export const createStorageHub = tryCatchWrapper(
       specSecurity,
       specAccessibility,
       specNearestMajorMarket,
-      pricePerBagPerWeek50kg,
-      pricePerCratePerWeek50kg,
-      priceWeeklyBulk100Plus,
-      priceMonthly,
+      pricePerBagPerDay50kg,
+      pricePerCratePerDay50kg,
+      priceDailyBulk100Plus,
+      priceWeeklyFlat,
       images: cloudinaryUrls,
       // rating, reviewCount, and isVerified fallback to schema defaults safely
     });
@@ -122,7 +122,7 @@ export const getHubsGroupedByState = tryCatchWrapper(
 
     const hubs = await Hub.find()
       .select(
-        "name address state lga totalCapacity availableCapacity unitType images storageType isVerified pricePerCratePerWeek50kg pricePerBagPerWeek50kg",
+        "name address state lga totalCapacity availableCapacity unitType images storageType isVerified pricePerCratePerDay50kg pricePerBagPerDay50kg",
       )
       .sort({ createdAt: -1 })
       .lean();
@@ -172,7 +172,7 @@ export const getSingleHubBySlug = tryCatchWrapper(
       _id: { $ne: hub._id },
     })
       .select(
-        "name state lga totalCapacity availableCapacity unitType images storageType pricePerBagPerWeek50kg rating reviewCount isVerified slug",
+        "name state lga totalCapacity availableCapacity unitType images storageType pricePerBagPerDay50kg pricePerCratePerDay50kg priceDailyBulk100Plus priceWeeklyFlat rating reviewCount isVerified slug",
       )
       .limit(3)
       .lean();
@@ -188,14 +188,12 @@ export const getAllStorageHubs = tryCatchWrapper(
   async (req: Request, res: Response, next: NextFunction) => {
     const hubs = await Hub.find().sort({ createdAt: -1 }).lean();
 
-    if (!hubs) {
-      return sendTsRestError(res, 404, "There are no storage hubs available");
+    if (hubs.length === 0) {
+      return sendTsRestSuccess(res, 200, {
+        message: "No storage hubs found",
+        data: [],
+      });
     }
-
-    return sendTsRestSuccess(res, 200, {
-      message: "All Storage Hubs retrieved Successfully",
-      data: hubs,
-    });
   },
 );
 
@@ -252,15 +250,7 @@ const escapeRegex = (text: string) =>
 export const filterStorageHubs = tryCatchWrapper(
   async (req: Request, res: Response) => {
     // 1. Extract query params sent from the frontend FilterCapture component
-    const {
-      locationState,
-      lga,
-      minCapacity,
-      availableOnly,
-      maxPrice,
-      cropType,
-      storageType,
-    } = req.query;
+    const { locationState, cropType, storageType } = req.query;
 
     // 2. Dynamically build the Mongoose query object
     const filterQuery: Record<string, any> = {};
@@ -296,7 +286,7 @@ export const filterStorageHubs = tryCatchWrapper(
     // 3. Query database
     const hubs = await Hub.find(filterQuery)
       .select(
-        "name state lga storageType totalCapacity availableCapacity unitType pricePerBagPerWeek50kg rating reviewCount isVerified images slug",
+        "name state lga storageType totalCapacity availableCapacity unitType pricePerBagPerDay50kg pricePerCratePerDay50kg rating reviewCount isVerified images slug",
       )
       .sort({ createdAt: -1 })
       .lean();

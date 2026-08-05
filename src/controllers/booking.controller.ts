@@ -7,8 +7,7 @@ import Hub from "../models/storageHub.model.js";
 import { sendBookingCreatedEmail } from "../lib/email.js";
 import logger from "../config/logger.js";
 
-//Helper function to generate custom Booking ID (e.g., AK-JFCX7L)
-
+// Helper function to generate custom Booking ID (e.g., AK-JFCX7L)
 const generateBookingId = (): string => {
   const randomStr = crypto.randomBytes(3).toString("hex").toUpperCase();
   return `AK-${randomStr}`;
@@ -29,37 +28,48 @@ export const createBooking = tryCatchWrapper(
       specialInstructions,
     } = req.body;
 
+    const qty = Number(quantity);
     const userId =
-      (req.session as any)?.user?._id || (req.session as any)?.userId; //Optional if guest booking
+      (req.session as any)?.user?._id || (req.session as any)?.userId;
 
-    // Verify storage hub
+    // 1. Verify storage hub
     const hub = await Hub.findById(hubId);
     if (!hub) {
       return sendTsRestError(res, 404, "Storage Hub not found");
     }
-    //Validate available capacity
-    if (quantity > hub.availableCapacity) {
+
+    // Validate available capacity
+    if (qty > hub.availableCapacity) {
       return sendTsRestError(
         res,
         400,
-        `Requested quantity (${quantity}) exceeds available hub capacity (${hub.availableCapacity})`,
+        `Requested quantity (${qty}) exceeds available hub capacity (${hub.availableCapacity})`
       );
     }
 
     // 2. Validate Supported Crop
     const isCropSupported = hub.supportedCrops.some(
-      (crop: string) => crop.toLowerCase() === selectedCrop.toLowerCase(),
+      (crop: string) => crop.toLowerCase() === selectedCrop.toLowerCase()
     );
 
     if (!isCropSupported) {
       return sendTsRestError(
         res,
         400,
-        `This storage hub does not support "${selectedCrop}". Supported crops: ${hub.supportedCrops.join(", ")}`,
+        `This storage hub does not support "${selectedCrop}". Supported crops: ${hub.supportedCrops.join(", ")}`
       );
     }
 
-    // 🗓️ Calculate duration in days directly from dates
+    // 2b. Validate Unit Type compatibility with Hub
+    if (hub.unitType.toLowerCase() !== unitType.toLowerCase()) {
+      return sendTsRestError(
+        res,
+        400,
+        `This storage facility only supports "${hub.unitType}" storage. You selected "${unitType}".`
+      );
+    }
+
+    // 3. Calculate duration in days directly from dates
     const start = new Date(dropOffDate).getTime();
     const end = new Date(pickUpDate).getTime();
     const diffTime = end - start;
@@ -69,46 +79,63 @@ export const createBooking = tryCatchWrapper(
       return sendTsRestError(
         res,
         400,
-        "Pick-up date must be at least 1 day after drop-off date",
+        "Pick-up date must be at least 1 day after drop-off date"
       );
     }
-    //calculate pricing
 
+    // 4. Calculate pricing
     const isCrate = unitType === "crates";
-    const isBulk = Number(quantity) >= 100;
+    const isBulk = qty >= 100;
+    const isWeekly = totalDays >= 7 && totalDays % 7 === 0 && !isBulk;
 
-    let weeklyRatePerUnit = hub.pricePerBagPerWeek50kg;
+    let dailyPricePerUnit = 0;
+    let storageFee = 0;
 
-    if (isCrate) {
-      if (!hub.pricePerCratePerWeek50kg || hub.pricePerCratePerWeek50kg <= 0) {
+    // Tier 1: Weekly Flat Rate (7-day multiples under 100 units)
+    if (isWeekly && hub.priceWeeklyFlat > 0) {
+      const weeks = totalDays / 7;
+      storageFee = weeks * hub.priceWeeklyFlat;
+      dailyPricePerUnit = parseFloat(
+        (hub.priceWeeklyFlat / (7 * qty)).toFixed(2)
+      );
+    }
+    // Tier 2: Bulk Daily Rate (100+ units)
+    else if (isBulk && hub.priceDailyBulk100Plus > 0) {
+      dailyPricePerUnit = hub.priceDailyBulk100Plus;
+      storageFee = totalDays * hub.priceDailyBulk100Plus;
+    }
+    // Tier 3: Standard Crate Daily Rate
+    else if (isCrate) {
+      if (!hub.pricePerCratePerDay50kg || hub.pricePerCratePerDay50kg <= 0) {
         return sendTsRestError(
           res,
           400,
-          "This facility does not offer crate storage",
+          "This facility does not offer crate storage"
         );
       }
-      weeklyRatePerUnit = hub.pricePerCratePerWeek50kg;
-    } else if (isBulk && hub.priceWeeklyBulk100Plus > 0) {
-      //apply bulk discount rate
-      weeklyRatePerUnit = hub.priceWeeklyBulk100Plus;
+      dailyPricePerUnit = hub.pricePerCratePerDay50kg;
+      storageFee = Math.round(dailyPricePerUnit * qty * totalDays);
+    }
+    // Tier 4: Standard Bag Daily Rate
+    else {
+      if (!hub.pricePerBagPerDay50kg || hub.pricePerBagPerDay50kg <= 0) {
+        return sendTsRestError(
+          res,
+          400,
+          "This facility does not offer bag storage"
+        );
+      }
+      dailyPricePerUnit = hub.pricePerBagPerDay50kg;
+      storageFee = Math.round(dailyPricePerUnit * qty * totalDays);
     }
 
-    //convert weekly rate to pro rated daily rate per bag
-    const dailyPricePerUnit = weeklyRatePerUnit / 7;
-
-    //Total Base Storage Fee
-    const storageFee = Math.round(
-      dailyPricePerUnit * Number(quantity) * totalDays,
-    );
-
-    //service fee and deposit breakdown
+    // Service fee and deposit breakdown
     const serviceFee = 5000;
     const totalAmount = storageFee + serviceFee;
-    const depositAmount = Math.round(totalAmount * 0.3); // 30% deposit required immediately
-
+    const depositAmount = Math.round(totalAmount * 0.3); // 30% deposit
     const balanceAmount = totalAmount - depositAmount;
 
-    //creating booking record
+    // 5. Create booking record
     const bookingId = generateBookingId();
 
     const booking = await Booking.create({
@@ -116,7 +143,7 @@ export const createBooking = tryCatchWrapper(
       hub: hub._id,
       user: userId || null,
       cropType: selectedCrop,
-      quantity: Number(quantity),
+      quantity: qty,
       unitType: unitType || "bags",
       dropOffDate: new Date(dropOffDate),
       pickUpDate: new Date(pickUpDate),
@@ -134,6 +161,8 @@ export const createBooking = tryCatchWrapper(
       bookingStatus: "pending",
       paymentStatus: "unpaid",
     });
+
+    // 6. Send notification email
     const recipientEmail = booking.email || req.body.email;
     if (recipientEmail) {
       sendBookingCreatedEmail(
@@ -146,15 +175,16 @@ export const createBooking = tryCatchWrapper(
         booking.dropOffDate,
         booking.pickUpDate,
         booking.depositAmount,
-        booking.totalAmount,
+        booking.totalAmount
       ).catch((err) => {
         logger.error("Failed to send booking creation email:", err.message);
       });
     } else {
       logger.warn(
-        `Skipping booking creation email: No email provided for booking ${booking.bookingId}`,
+        `Skipping booking creation email: No email provided for booking ${booking.bookingId}`
       );
     }
+
     return sendTsRestSuccess(res, 201, {
       message: "Booking initialized successfully",
       data: {
@@ -167,5 +197,5 @@ export const createBooking = tryCatchWrapper(
         },
       },
     });
-  },
+  }
 );
