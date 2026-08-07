@@ -126,7 +126,10 @@ export class PaystackService {
         const existingPayment = await Payment.findOne({
           reference: tx.reference,
         });
-        return { booking, payment: existingPayment };
+
+        // 🟢 POPULATE HUB FOR REFRESH / IDEMPOTENT CASES
+        await booking.populate("hub", "address name state lga slug images");
+        return { booking, payment: existingPayment, hub: booking.hub };
       }
 
       //atomic capacity deduction (Race condition protection)
