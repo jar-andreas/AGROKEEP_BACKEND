@@ -1,16 +1,41 @@
 import mongoose, { Schema, Document } from "mongoose";
 
+// 1. Interface for Notification Preferences
+export interface INotificationPreferences {
+  bookingUpdates: boolean;
+  paymentNotifications: boolean;
+  reminderAlerts: boolean;
+  smsNotifications: boolean;
+  emailNotifications: boolean;
+}
+
 export interface IUser extends Document {
   _id: mongoose.Types.ObjectId;
   fullName: string;
   email: string;
   phone: string;
   password: string;
+  avatarUrl?: string;
+  avatarPublicId?: string;
+  passwordChangedAt?: Date;
   emailVerified: boolean;
   role: "admin" | "client";
   createdAt: Date;
   updatedAt: Date;
+  notificationPreferences: INotificationPreferences;
 }
+
+// 3. Sub-Schema for Notification Preferences
+const NotificationPreferencesSchema = new Schema<INotificationPreferences>(
+  {
+    bookingUpdates: { type: Boolean, default: true },
+    paymentNotifications: { type: Boolean, default: true },
+    reminderAlerts: { type: Boolean, default: true },
+    smsNotifications: { type: Boolean, default: true },
+    emailNotifications: { type: Boolean, default: false },
+  },
+  { _id: false }, // Prevents generating an unnecessary subdocument _id
+);
 
 const UserSchema = new Schema<IUser>(
   {
@@ -48,6 +73,20 @@ const UserSchema = new Schema<IUser>(
       minlength: [8, "Password must be at least 8 characters"],
     },
 
+    passwordChangedAt: {
+      type: Date,
+    },
+
+    avatarUrl: {
+      type: String,
+      default: "",
+    },
+
+    avatarPublicId: {
+      type: String,
+      default: "",
+    },
+
     emailVerified: {
       type: Boolean,
       default: false,
@@ -60,6 +99,11 @@ const UserSchema = new Schema<IUser>(
         message: "Role must be either client or admin",
       },
       default: "client",
+    },
+
+    notificationPreferences: {
+      type: NotificationPreferencesSchema,
+      default: () => ({}),
     },
   },
   {

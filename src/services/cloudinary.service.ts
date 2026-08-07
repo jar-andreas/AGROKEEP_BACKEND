@@ -64,3 +64,44 @@ export const uploadToCloudinary = (fileBuffer: Buffer): Promise<string> => {
     uploadStream.end(fileBuffer);
   });
 };
+
+export interface CloudinaryUploadResult {
+  url: string;
+  publicId: string;
+}
+
+// Upload Avatar Buffer Helper
+export const uploadAvatarToCloudinary = (
+  fileBuffer: Buffer,
+): Promise<CloudinaryUploadResult> => {
+  return new Promise((resolve, reject) => {
+    const uploadStream = cloudinary.uploader.upload_stream(
+      {
+        folder: "agrokeep-avatars",
+        resource_type: "image",
+        quality: "auto",
+        fetch_format: "webp",
+        transformation: [
+          { width: 400, height: 400, crop: "fill", gravity: "face" }, // Auto-crops & centers on user's face
+        ],
+      },
+      (error, result) => {
+        if (error) return reject(error);
+        if (!result)
+          return reject(new Error("Cloudinary returned an empty response."));
+
+        resolve({
+          url: result.secure_url,
+          publicId: result.public_id,
+        });
+      },
+    );
+
+    uploadStream.end(fileBuffer);
+  });
+};
+
+// Delete Helper
+export const deleteFromCloudinary = (publicId: string): Promise<any> => {
+  return cloudinary.uploader.destroy(publicId);
+};

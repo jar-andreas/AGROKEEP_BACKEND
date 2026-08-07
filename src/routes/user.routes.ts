@@ -14,12 +14,22 @@ import {
 import { customRateLimiter } from "../middleware/ratelimit.middleware.js";
 import { validateFormData } from "../middleware/formvalidate.middleware.js";
 import {
+  changePasswordSchema,
   forgotPasswordSchema,
   resetPasswordSchema,
+  updateUserProfileSchema,
   ValidateLoginSchema,
   validateSignupSchema,
 } from "../lib/schemaValidation.js";
 import { isAuthenticated } from "../middleware/auth.middleware.js";
+import {
+  changePassword,
+  deleteAvatar,
+  getUserProfile,
+  updateUserProfile,
+  uploadAvatar,
+} from "../controllers/profile.controller.js";
+import { uploadMemoryParser } from "../services/cloudinary.service.js";
 
 const router = Router();
 
@@ -44,6 +54,8 @@ router.post(
   validateFormData(ValidateLoginSchema),
   loginUser,
 );
+
+router.get("/profile", isAuthenticated, getUserProfile);
 
 router.get("/me", isAuthenticated, getMe);
 
@@ -73,6 +85,32 @@ router.post(
   validateFormData(resetPasswordSchema),
   resetPassword,
 );
+
+router.post(
+  "/change-password",
+  isAuthenticated,
+  customRateLimiter(3, 15), //3 attempts per 15 minutes
+  validateFormData(changePasswordSchema),
+  changePassword,
+);
+
+router.patch(
+  "/upload-avatar",
+  isAuthenticated,
+  customRateLimiter(5, 15), //5 attempts per 15 minutes
+  uploadMemoryParser.single("avatar"),
+  uploadAvatar,
+),
+
+router.patch(
+  "/update-profile",
+  isAuthenticated,
+  customRateLimiter(3, 15), //3 attempts per 15 minutes
+  validateFormData(updateUserProfileSchema),
+  updateUserProfile,
+);
+
+router.delete("/delete-avatar", isAuthenticated, deleteAvatar);
 
 router.post("/logout", isAuthenticated, logoutUser);
 

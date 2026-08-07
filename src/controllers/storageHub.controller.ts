@@ -173,11 +173,11 @@ export const getHubsGroupedByState = tryCatchWrapper(
       hubs: stateGroups[state],
     }));
 
-    return sendTsRestSuccess(res, 200, {
-      message: "Hubs grouped by state retrieved successfully",
-      data: formattedData,
-    });
-  },
+      return sendTsRestSuccess(res, 200, {
+        message: "Hubs grouped by state retrieved successfully",
+        data: formattedData,
+      });
+    },
 );
 
 export const getSingleHubBySlug = tryCatchWrapper(
@@ -312,8 +312,7 @@ export const filterStorageHubs = tryCatchWrapper(
       .select(
         "name state lga storageType totalCapacity availableCapacity unitType pricePerBagPerDay pricePerCratePerDay priceBulk100Units priceWeeklyFlat rating reviewCount isVerified images slug",
       )
-      .sort({ createdAt: -1 })
-      .lean();
+      .sort({ createdAt: -1 });
 
     if (hubs.length === 0) {
       return sendTsRestSuccess(res, 200, {
@@ -329,5 +328,5 @@ export const filterStorageHubs = tryCatchWrapper(
       count: hubs.length,
       data: hubs,
     });
-  },
+  }
 );

@@ -378,6 +378,41 @@ export const verifyPaymentSchema = z.object({
 
 export const updateHubValidationSchema = createHubValidationSchema.partial();
 
+// Profile update validation
+export const updateUserProfileSchema = z.object({
+  fullName: z
+    .string()
+    .min(5, "Fullname must be at least 5 characters")
+    .max(50, "Fullname must be at most 50 characters")
+    .optional(),
+  phone: z
+    .string()
+    .regex(/^\+?[1-9]\d{1,14}$/, "Invalid phone number format")
+    .optional(),
+  notificationPreferences: z
+    .object({
+      bookingUpdates: z.boolean().optional(),
+      paymentNotifications: z.boolean().optional(),
+      reminderAlerts: z.boolean().optional(),
+      smsNotifications: z.boolean().optional(),
+      emailNotifications: z.boolean().optional(),
+    })
+    .optional(),
+});
+
+export const changePasswordSchema = z
+  .object({
+    currentPassword: z.string().min(1, "Current password is required"),
+    newPassword: z
+      .string()
+      .min(8, "New password must be at least 8 characters"),
+    confirmPassword: z.string().min(1, "Confirm password is required"),
+  })
+  .refine((data) => data.newPassword === data.confirmPassword, {
+    message: "Passwords do not match",
+    path: ["confirmPassword"], // Attaches the error to confirmPassword field
+  });
+
 export type SignupInput = z.infer<typeof validateSignupSchema>;
 export type LoginInput = z.infer<typeof ValidateLoginSchema>;
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
@@ -390,3 +425,5 @@ export type validateContactUsSchema = z.infer<typeof validateContactUsSchema>;
 
 export type CreateHubInput = z.infer<typeof createHubValidationSchema>;
 export type CreateBookingInput = z.infer<typeof createBookingSchema>;
+export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
+export type UpdateUserProfileInput = z.infer<typeof updateUserProfileSchema>;
