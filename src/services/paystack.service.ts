@@ -8,7 +8,6 @@ import {
   InitializePaymentData,
   PaystackCreateResponse,
   VerifyPaymentData,
-  PaystackVerifyResponse,
 } from "../interfaces/payment.interface.js";
 import { sendPaymentSuccessEmail } from "../lib/email.js";
 
@@ -192,6 +191,8 @@ export class PaystackService {
       booking.payment = paymentRecord._id;
       await booking.save();
 
+      await booking.populate("hub", "address name state lga slug images");
+
       logger.info(
         `Booking ${booking.bookingId} verified successfully. Quantity ${booking.quantity} reserved on Hub`,
       );
@@ -214,6 +215,7 @@ export class PaystackService {
       return {
         booking,
         payment: paymentRecord,
+        hub: updatedHub || booking.hub,
       };
     } catch (error: any) {
       logger.error("Paystack Verification Error:", error.message);
