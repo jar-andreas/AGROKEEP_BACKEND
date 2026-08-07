@@ -127,7 +127,7 @@ export class PaystackService {
         });
 
         // 🟢 POPULATE HUB FOR REFRESH / IDEMPOTENT CASES
-        await booking.populate("hub", "address name state lga slug images");
+        await booking.populate("hub");
         return { booking, payment: existingPayment, hub: booking.hub };
       }
 
@@ -191,7 +191,7 @@ export class PaystackService {
       booking.payment = paymentRecord._id;
       await booking.save();
 
-      await booking.populate("hub", "address name state lga slug images");
+      await booking.populate("hub");
 
       logger.info(
         `Booking ${booking.bookingId} verified successfully. Quantity ${booking.quantity} reserved on Hub`,
