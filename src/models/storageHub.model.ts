@@ -26,10 +26,10 @@ export interface IHub extends Document {
   specNearestMajorMarket: string;
 
   // Flattened Pricing Details
-  pricePerBagPerDay50kg: number;
-  pricePerCratePerDay50kg: number;
-  priceDailyBulk100Plus: number;
-  priceWeeklyFlat: number;
+  pricePerBagPerDay: number;
+  pricePerCratePerDay: number;
+  priceBulk100Units: number; // Auto-calculated (5% discount per unit per day)
+  priceWeeklyFlat: number;   // Auto-calculated (7 * base daily rate per unit)
 
   // Administrative Fields
   rating: number;
@@ -40,7 +40,6 @@ export interface IHub extends Document {
 }
 
 // MAIN HUB SCHEMA
-
 const StorageHubSchema = new Schema<IHub>(
   {
     name: { type: String, required: true, trim: true },
@@ -68,28 +67,35 @@ const StorageHubSchema = new Schema<IHub>(
     specNearestMajorMarket: { type: String, required: true },
 
     // Flattened Pricing
-    pricePerBagPerDay50kg: { type: Number, required: true, default: 0 },
-    pricePerCratePerDay50kg: { type: Number, required: true, default: 0 },
-    priceDailyBulk100Plus: { type: Number, required: true, default: 0 },
-    priceWeeklyFlat: { type: Number, required: true, default: 0 },
+    pricePerBagPerDay: { type: Number, required: true, default: 0 },
+    pricePerCratePerDay: { type: Number, required: true, default: 0 },
+    priceBulk100Units: { type: Number, default: 0 },
+    priceWeeklyFlat: { type: Number, default: 0 },
 
-    // Admin Fields Added & Defined
+    // Admin Fields
     rating: { type: Number, default: 0 },
     reviewCount: { type: Number, default: 0 },
     isVerified: { type: Boolean, default: true },
 
     slug: { type: String, unique: true },
   },
-  { timestamps: true },
+  { timestamps: true }
 );
 
-// AUTOMATIC SLUG HOOK
-
+// COMBINED AUTOMATIC PRE-SAVE HOOK (SLUG & PRICING CALCULATIONS)
 StorageHubSchema.pre("save", async function () {
-  // Only generate or update slug if the name is modified
+  // --- 1. AUTOMATIC PRICING CALCULATIONS ---
+  const baseRate = this.pricePerBagPerDay || this.pricePerCratePerDay || 0;
+
+  // 100+ Units Bulk Rate (5% discount per unit daily rate)
+  this.priceBulk100Units = parseFloat((baseRate * 0.95).toFixed(2));
+
+  // Weekly Flat Rate (7 * base daily rate per unit)
+  this.priceWeeklyFlat = baseRate * 7;
+
+  // --- 2. AUTOMATIC UNIQUE SLUG GENERATION ---
   if (!this.isModified("name")) return;
 
-  // 1. Generate base string
   let generatedSlug = this.name
     .toLowerCase()
     .trim()
@@ -97,7 +103,6 @@ StorageHubSchema.pre("save", async function () {
     .replace(/[\s_-]+/g, "-")
     .replace(/^-+|-+$/g, "");
 
-  // 2. Loop until a truly unique slug variant is confirmed
   const HubModel = this.constructor as mongoose.Model<IHub>;
   let slugExists = await HubModel.findOne({ slug: generatedSlug });
   let counter = 1;

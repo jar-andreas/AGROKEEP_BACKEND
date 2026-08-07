@@ -6,6 +6,7 @@ import {
   getAllStorageHubs,
   getHubsGroupedByState,
   getSingleHubBySlug,
+  getVerifiedHubs,
   updateStorageHub,
 } from "../controllers/storageHub.controller.js";
 import { validateFormData } from "../middleware/formvalidate.middleware.js";
@@ -26,6 +27,8 @@ router.post(
   validateFormData(createHubValidationSchema),
   createStorageHub,
 );
+
+router.get("/verified-hubs", getVerifiedHubs);
 
 router.get("/grouped-by-state", getHubsGroupedByState);
 

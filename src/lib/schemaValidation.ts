@@ -275,19 +275,11 @@ export const createHubValidationSchema = z.object({
     .min(3, "Market name too short"),
 
   // 🔒 Pricing checks: Cannot be negative
-  pricePerBagPerDay50kg: z.coerce
+  pricePerBagPerDay: z.coerce
     .number({ message: "Price must be a number" })
     .nonnegative("Price cannot be negative"),
 
-  pricePerCratePerDay50kg: z.coerce
-    .number({ message: "Price must be a number" })
-    .nonnegative("Price cannot be negative"),
-
-  priceDailyBulk100Plus: z.coerce
-    .number({ message: "Price must be a number" })
-    .nonnegative("Price cannot be negative"),
-
-  priceWeeklyFlat: z.coerce
+  pricePerCratePerDay: z.coerce
     .number({ message: "Price must be a number" })
     .nonnegative("Price cannot be negative"),
 });

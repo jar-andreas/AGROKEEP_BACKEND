@@ -29,15 +29,12 @@ export const createStorageHub = tryCatchWrapper(
       specSecurity,
       specAccessibility,
       specNearestMajorMarket,
-      pricePerBagPerDay50kg,
-      pricePerCratePerDay50kg,
-      priceDailyBulk100Plus,
-      priceWeeklyFlat,
-      //rating, reviewCount, and isVerified are left out here as per user configuration
+      pricePerBagPerDay,
+      pricePerCratePerDay,
     } = req.body;
     const files = req.files as Express.Multer.File[];
 
-    // Explicitly check for uploaded assets
+    // 1. Explicitly check for uploaded assets
     if (!files || files.length === 0) {
       return sendTsRestError(
         res,
@@ -60,7 +57,7 @@ export const createStorageHub = tryCatchWrapper(
       );
     }
 
-    // 3. Evaluate capacity limits (No Number() wrappers needed; Zod handles it!)
+    // 3. Evaluate capacity limits
     const total = totalCapacity;
     const available =
       availableCapacity !== undefined ? availableCapacity : total;
@@ -77,8 +74,8 @@ export const createStorageHub = tryCatchWrapper(
     const uploadPromises = files.map((file) => uploadToCloudinary(file.buffer));
     const cloudinaryUrls = await Promise.all(uploadPromises);
 
-    // 5. Create new Hub using the flattened structure
-    const newHub = await Hub.create({
+    // 5. Create new Hub instance and save (Triggers schema pre-save hook for pricing & slug)
+    const newHub = new Hub({
       name,
       address,
       state,
@@ -101,13 +98,12 @@ export const createStorageHub = tryCatchWrapper(
       specSecurity,
       specAccessibility,
       specNearestMajorMarket,
-      pricePerBagPerDay50kg,
-      pricePerCratePerDay50kg,
-      priceDailyBulk100Plus,
-      priceWeeklyFlat,
+      pricePerBagPerDay,
+      pricePerCratePerDay,
       images: cloudinaryUrls,
-      // rating, reviewCount, and isVerified fallback to schema defaults safely
     });
+
+    await newHub.save();
 
     return sendTsRestSuccess(res, 201, {
       message: "Storage Hub created successfully!",
@@ -116,33 +112,62 @@ export const createStorageHub = tryCatchWrapper(
   },
 );
 
+export const getVerifiedHubs = tryCatchWrapper(
+  async (req: Request, res: Response) => {
+    const { isVerified, limit } = req.query;
+
+    // Build filter criteria
+    const filter: Record<string, any> = {
+      isVerified: isVerified !== undefined ? isVerified === "true" : true,
+    };
+
+    // Safely parse limit (defaults to 3, falls back to 3 if limit is NaN)
+    const parsedLimit = limit ? parseInt(limit as string, 10) : 3;
+    const limitNumber = isNaN(parsedLimit) ? 3 : parsedLimit;
+
+    const hubs = await Hub.find(filter)
+      .lean()
+      .sort({ createdAt: -1 })
+      .limit(limitNumber);
+
+    if (!hubs || hubs.length === 0) {
+      return sendTsRestError(
+        res,
+        404,
+        "There are no available verified storage hubs",
+      );
+    }
+    return sendTsRestSuccess(res, 200, {
+      status: "success",
+      message: "Hubs retrieved successfully",
+      data: hubs,
+    });
+  },
+);
+
 export const getHubsGroupedByState = tryCatchWrapper(
   async (req: Request, res: Response, next: NextFunction) => {
-    //fetch only the fields needed for the homepage cards to save memory and for optimization
-
+    // Select correct flattened pricing fields
     const hubs = await Hub.find()
       .select(
-        "name address state lga totalCapacity availableCapacity unitType images storageType isVerified pricePerCratePerDay50kg pricePerBagPerDay50kg",
+        "name address state lga totalCapacity availableCapacity unitType images storageType isVerified pricePerCratePerDay pricePerBagPerDay priceBulk100Units priceWeeklyFlat rating reviewCount slug",
       )
       .sort({ createdAt: -1 })
       .lean();
 
-    //map dictionary to collect states
     const stateGroups: { [key: string]: any[] } = {};
 
-    //loop and group hubs by state name
     for (const hub of hubs) {
       const stateName = hub.state;
 
       if (!stateGroups[stateName]) {
         stateGroups[stateName] = [];
       }
-      //limit the landing page row preview to a max of 4 hubs
       if (stateGroups[stateName].length < 4) {
         stateGroups[stateName].push(hub);
       }
     }
-    //format into a clean array structure for frontend mapping
+
     const formattedData = Object.keys(stateGroups).map((state) => ({
       state: state,
       hubs: stateGroups[state],
@@ -161,18 +186,17 @@ export const getSingleHubBySlug = tryCatchWrapper(
 
     const hub = await Hub.findOne({ slug }).lean();
 
-    // Handle case where the hub doesn't exist
     if (!hub) {
       return sendTsRestError(res, 404, "Storage Hub not found");
     }
 
-    // Fetch 3 similar hubs in the same state (excluding current hub)
+    // Fetch 3 similar hubs in the same state using corrected schema projection
     const similarHubs = await Hub.find({
       state: hub.state,
       _id: { $ne: hub._id },
     })
       .select(
-        "name state lga totalCapacity availableCapacity unitType images storageType pricePerBagPerDay50kg pricePerCratePerDay50kg priceDailyBulk100Plus priceWeeklyFlat rating reviewCount isVerified slug",
+        "name state lga totalCapacity availableCapacity unitType images storageType pricePerBagPerDay pricePerCratePerDay priceBulk100Units priceWeeklyFlat rating reviewCount isVerified slug",
       )
       .limit(3)
       .lean();
@@ -194,6 +218,13 @@ export const getAllStorageHubs = tryCatchWrapper(
         data: [],
       });
     }
+
+    // FIXED: Return response when hubs are present
+    return sendTsRestSuccess(res, 200, {
+      message: "Storage hubs retrieved successfully",
+      count: hubs.length,
+      data: hubs,
+    });
   },
 );
 
@@ -201,22 +232,23 @@ export const updateStorageHub = tryCatchWrapper(
   async (req: Request, res: Response, next: NextFunction) => {
     const { id } = req.params;
 
-    const updatedHub = await Hub.findByIdAndUpdate(
-      id,
-      { $set: req.body },
-      { new: true, runValidators: true },
-    ).lean();
+    const hub = await Hub.findById(id);
 
-    if (!updatedHub) {
+    if (!hub) {
       return sendTsRestError(
         res,
         404,
         "Storage Hub could not be updated because it doesn't exist",
       );
     }
+
+    // Apply updates and call save() to trigger schema pre-save pricing hook
+    Object.assign(hub, req.body);
+    await hub.save();
+
     return sendTsRestSuccess(res, 200, {
       message: "Storage Hub updated successfully",
-      data: updatedHub,
+      data: hub,
     });
   },
 );
@@ -241,21 +273,15 @@ export const deleteStorageHub = tryCatchWrapper(
   },
 );
 
-// Helper function to escape special regex characters (e.g. parentheses in "Cowpea (Beans)")
-
-// Standard Regex Special Character Escaper (Fixed typo)
 const escapeRegex = (text: string) =>
   text.replace(/[-[\]{}()*+?^$|#\s]/g, "\\$&");
 
 export const filterStorageHubs = tryCatchWrapper(
   async (req: Request, res: Response) => {
-    // 1. Extract query params sent from the frontend FilterCapture component
     const { locationState, cropType, storageType } = req.query;
 
-    // 2. Dynamically build the Mongoose query object
     const filterQuery: Record<string, any> = {};
 
-    // Filter by State
     if (
       locationState &&
       typeof locationState === "string" &&
@@ -265,7 +291,6 @@ export const filterStorageHubs = tryCatchWrapper(
       filterQuery.state = { $regex: new RegExp(`^${safeState}$`, "i") };
     }
 
-    // Filter by Storage Type
     if (
       storageType &&
       typeof storageType === "string" &&
@@ -277,21 +302,19 @@ export const filterStorageHubs = tryCatchWrapper(
       };
     }
 
-    // Filter by Crop Type
     if (cropType && typeof cropType === "string" && cropType.trim() !== "") {
       const safeCrop = escapeRegex(cropType.trim());
       filterQuery.supportedCrops = { $regex: safeCrop, $options: "i" };
     }
 
-    // 3. Query database
+    // Updated with corrected schema fields
     const hubs = await Hub.find(filterQuery)
       .select(
-        "name state lga storageType totalCapacity availableCapacity unitType pricePerBagPerDay50kg pricePerCratePerDay50kg rating reviewCount isVerified images slug",
+        "name state lga storageType totalCapacity availableCapacity unitType pricePerBagPerDay pricePerCratePerDay priceBulk100Units priceWeeklyFlat rating reviewCount isVerified images slug",
       )
       .sort({ createdAt: -1 })
       .lean();
 
-    // 4. Handle Empty Search Results Gracefully
     if (hubs.length === 0) {
       return sendTsRestSuccess(res, 200, {
         message:
@@ -301,7 +324,6 @@ export const filterStorageHubs = tryCatchWrapper(
       });
     }
 
-    // 5. Send Success Response
     return sendTsRestSuccess(res, 200, {
       message: "Filtered storage hubs retrieved successfully",
       count: hubs.length,
