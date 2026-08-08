@@ -1,16 +1,16 @@
 import { config } from "dotenv";
 
-//load env files
+// Always attempt to load .env in development/local environments
 if (process.env.NODE_ENV !== "production") {
   config();
 }
 
-interface Envspec {
+interface EnvSpec {
   key: string;
   required?: boolean;
 }
 
-const ENV_VARS: Envspec[] = [
+const ENV_VARS: EnvSpec[] = [
   { key: "NODE_ENV", required: true },
   { key: "DATABASE_URL", required: true },
   { key: "DATABASE_NAME", required: true },
@@ -34,15 +34,16 @@ interface Env {
   readonly [key: string]: string;
 }
 
-const env: Env = process.env as Env;
-
-const requiredVars = ENV_VARS.filter((v) => v.required);
-const missingVars = requiredVars.filter((v) => !env[v.key]);
+// Find all missing keys (either undefined or empty strings)
+const missingVars = ENV_VARS.filter(
+  (v) => v.required && (!process.env[v.key] || process.env[v.key]?.trim() === "")
+);
 
 if (missingVars.length > 0) {
-  throw new Error(
-    `Missing required environmental variables: ${missingVars.map((v) => v.key).join(", ")}`,
-  );
+  const missingKeys = missingVars.map((v) => v.key).join(", ");
+  throw new Error(`Missing required environment variables: ${missingKeys}`);
 }
+
+const env: Env = process.env as Env;
 
 export { env };
