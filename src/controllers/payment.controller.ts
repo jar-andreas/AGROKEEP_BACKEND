@@ -122,7 +122,7 @@ export const generateReceiptPDF = tryCatchWrapper(
       .text("Storage Details", 65, boxStartY + 15);
 
     doc
-      .fillColor("#1e9e07")
+      .fillColor("#6cee55")
       .fontSize(10)
       .text(`Storage Hub: ${hub?.name || "N/A"}`, 65, boxStartY + 35)
       .text(
