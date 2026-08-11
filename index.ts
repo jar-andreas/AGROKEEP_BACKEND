@@ -49,7 +49,9 @@ setupGlobalErrorHandlers();
 const cleanOrigin = env.CLIENT_URL ? env.CLIENT_URL.replace(/\/$/, "") : "";
 
 //CORS CONFIGURATION
-const allowedOrigins = [cleanOrigin];
+const allowedOrigins = [
+  cleanOrigin, "http://localhost:4600",
+];
 if (env.NODE_ENV === "production" && env.CLIENT_URL) {
   if (!allowedOrigins.includes(env.CLIENT_URL)) {
     allowedOrigins.push(env.CLIENT_URL);
