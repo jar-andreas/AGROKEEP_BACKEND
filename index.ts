@@ -48,8 +48,13 @@ setupGlobalErrorHandlers();
 // Normalize and strip trailing slashes securely
 const cleanOrigin = env.CLIENT_URL ? env.CLIENT_URL.replace(/\/$/, "") : "";
 
-//CORS CONFIGURATION
-const allowedOrigins = [cleanOrigin];
+// Define allowed origins explicitly for local dev + production
+const allowedOrigins = [
+  "http://localhost:4600",
+  "http://localhost:5000",
+  cleanOrigin,
+].filter(Boolean);
+
 if (env.NODE_ENV === "production" && env.CLIENT_URL) {
   if (!allowedOrigins.includes(env.CLIENT_URL)) {
     allowedOrigins.push(env.CLIENT_URL);
@@ -58,21 +63,20 @@ if (env.NODE_ENV === "production" && env.CLIENT_URL) {
 
 const corsOptions: cors.CorsOptions = {
   origin: (origin, callback) => {
-    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+    // Allow requests with no origin (like mobile apps or curl) or matching origins
+    if (!origin || allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
-      callback(new Error("Not allowed by CORS"));
+      callback(null, false); // Safely deny without throwing a 500 error
     }
   },
   credentials: true,
-  methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+  methods: ["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
   optionsSuccessStatus: 200,
   allowedHeaders: [
     "Content-Type",
     "Authorization",
     "ngrok-skip-browser-warning",
-    "Access-Control-Allow-Origin",
-    "Access-Control-Allow-Credentials",
   ],
   exposedHeaders: [
     "Content-Range",
