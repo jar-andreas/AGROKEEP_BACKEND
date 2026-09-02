@@ -1,11 +1,13 @@
-import { Request, Response, NextFunction } from "express";
+import { Request, Response } from "express";
 import crypto from "crypto";
 import tryCatchWrapper from "../lib/tryCatchWrapper.js";
 import { sendTsRestError, sendTsRestSuccess } from "../lib/responseHandler.js";
 import Booking from "../models/booking.model.js";
 import Hub from "../models/storageHub.model.js";
+import User from "../models/user.model.js"; // Ensure User model is imported for search
 import { sendBookingCreatedEmail } from "../lib/email.js";
 import logger from "../config/logger.js";
+import { AdminAllBookingsQuery } from "../lib/schemaValidation.js";
 
 // Helper function to generate custom Booking ID (e.g., AK-JFCX7L)
 const generateBookingId = (): string => {
@@ -59,7 +61,7 @@ export const createBooking = tryCatchWrapper(
       );
     }
 
-    // 2b. Validate Unit Type compatibility with Hub (Handles "both", "bags", or "crates")
+    // 2b. Validate Unit Type compatibility with Hub
     const hubUnitType = hub.unitType.toLowerCase();
     const requestedUnitType = (unitType || "bags").toLowerCase();
 
@@ -99,19 +101,15 @@ export const createBooking = tryCatchWrapper(
       );
     }
 
-    // Check Bulk Threshold (100+ units triggers 5% pre-calculated discount rate)
     const isBulk = qty >= 100;
     const dailyPricePerUnit = isBulk
       ? hub.priceBulk100Units
       : baseDailyRate;
 
-    // Total Storage Fee: rate per unit/day * quantity * days
     const storageFee = Math.round(dailyPricePerUnit * qty * totalDays);
-
-    // Financial breakdown
     const serviceFee = 5000;
     const totalAmount = storageFee + serviceFee;
-    const depositAmount = Math.round(totalAmount * 0.3); // 30% deposit
+    const depositAmount = Math.round(totalAmount * 0.3);
     const balanceAmount = totalAmount - depositAmount;
 
     // 5. Create booking record
@@ -178,6 +176,7 @@ export const createBooking = tryCatchWrapper(
     });
   }
 );
+
 export const getMyBookings = tryCatchWrapper(
   async (req: Request, res: Response) => {
     const userId = req.session.userId;
@@ -186,15 +185,13 @@ export const getMyBookings = tryCatchWrapper(
       return sendTsRestError(
         res,
         401,
-        "Unauthorized. Please log in to continue.",
+        "Unauthorized. Please log in to continue."
       );
     }
 
     const page = Number(req.query.page) || 1;
     const limit = Number(req.query.limit) || 5;
-
     const skip = (page - 1) * limit;
-
     const query = { user: userId };
 
     const [
@@ -245,7 +242,7 @@ export const getMyBookings = tryCatchWrapper(
         },
       },
     });
-  },
+  }
 );
 
 export const getSingleBooking = tryCatchWrapper(
@@ -256,7 +253,6 @@ export const getSingleBooking = tryCatchWrapper(
       return sendTsRestError(res, 400, "Booking ID is required");
     }
 
-    // Support both 24-char Mongo ObjectIds and custom IDs (e.g. AK-JFCX7K)
     const isObjectId = /^[0-9a-fA-F]{24}$/.test(id);
     const query = isObjectId ? { _id: id } : { bookingId: id.toUpperCase() };
 
@@ -275,10 +271,125 @@ export const getSingleBooking = tryCatchWrapper(
     if (!booking) {
       return sendTsRestError(res, 404, "Booking not found");
     }
+
     return sendTsRestSuccess(res, 200, {
       success: true,
       message: "Booking retrieved successfully",
       data: { booking },
     });
-  },
+  }
+);
+
+export const getAllBookingsAdmin = tryCatchWrapper(
+  async (req: Request<{}, {}, {}, AdminAllBookingsQuery>, res: Response) => {
+    const {
+      search,
+      status,
+      state,
+      storageHub,
+      cropType,
+      paymentStatus,
+      startDate,
+      endDate,
+    } = req.query;
+
+    const page = Number(req.query.page) || 1;
+    const limit = Number(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    const filter: Record<string, any> = {};
+
+    // 1. Text Search Across Booking ID, Customer (fullName/email/user), or Storage Hub Name
+    if (search) {
+      const searchRegex = new RegExp(search, "i");
+
+      // Find matching User and Hub IDs for search query
+      const [matchingUsers, matchingHubs] = await Promise.all([
+        User.find({
+          $or: [{ fullName: searchRegex }, { email: searchRegex }],
+        }).select("_id"),
+        Hub.find({ name: searchRegex }).select("_id"),
+      ]);
+
+      filter.$or = [
+        { bookingId: searchRegex },
+        { fullName: searchRegex },
+        { email: searchRegex },
+        { user: { $in: matchingUsers.map((u) => u._id) } },
+        { hub: { $in: matchingHubs.map((h) => h._id) } },
+      ];
+    }
+
+    // 2. Exact Dropdown Filters
+    if (status && status !== "All Statuses") {
+      filter.bookingStatus = status.toLowerCase();
+    }
+
+    if (cropType && cropType !== "All Crop Types") {
+      filter.cropType = { $regex: new RegExp(`^${cropType}$`, "i") };
+    }
+
+    if (paymentStatus && paymentStatus !== "All Statuses") {
+      filter.paymentStatus = paymentStatus.toLowerCase();
+    }
+
+    // 3. Storage Hub & State Filter Integration (Prevents Overwriting)
+    if (storageHub && storageHub !== "All Storage Hubs") {
+      filter.hub = storageHub;
+    } else if (state && state !== "All States") {
+      const matchingStateHubs = await Hub.find({
+        state: { $regex: new RegExp(`^${state}$`, "i") },
+      }).select("_id");
+
+      filter.hub = { $in: matchingStateHubs.map((h) => h._id) };
+    }
+
+    // 4. Date Range Filtering (Full-day inclusion)
+    if (startDate || endDate) {
+      filter.dropOffDate = {};
+      if (startDate) filter.dropOffDate.$gte = new Date(startDate);
+      if (endDate) {
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+        filter.dropOffDate.$lte = end;
+      }
+    }
+
+    // 5. Database Queries
+    const [bookings, totalBookings] = await Promise.all([
+      Booking.find(filter)
+        .populate({
+          path: "hub",
+          select: "name slug state lga address",
+        })
+        .populate({
+          path: "user",
+          select: "fullName email phoneNumber",
+        })
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      Booking.countDocuments(filter),
+    ]);
+
+    return sendTsRestSuccess(res, 200, {
+      success: true,
+      message:
+        bookings.length > 0
+          ? "Admin bookings retrieved successfully"
+          : "No bookings matching criteria",
+      data: {
+        bookings,
+        pagination: {
+          total: totalBookings,
+          currentPage: page,
+          totalPages: Math.ceil(totalBookings / limit),
+          hasNextPage: page * limit < totalBookings,
+          hasPrevPage: page > 1,
+          limit,
+        },
+      },
+    });
+  }
 );

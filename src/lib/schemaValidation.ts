@@ -413,6 +413,19 @@ export const changePasswordSchema = z
     path: ["confirmPassword"], // Attaches the error to confirmPassword field
   });
 
+export const adminAllBookingsQuerySchema = z.object({
+  search: z.string().optional(),
+  status: z.string().optional(),
+  state: z.string().optional(),
+  storageHub: z.string().optional(),
+  cropType: z.string().optional(),
+  paymentStatus: z.string().optional(),
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
+  page: z.string().optional().transform((val) => (val ? parseInt(val, 10) : 1)),
+  limit: z.string().optional().transform((val) => (val ? parseInt(val, 10) : 10)),
+});
+
 export type SignupInput = z.infer<typeof validateSignupSchema>;
 export type LoginInput = z.infer<typeof ValidateLoginSchema>;
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
@@ -427,3 +440,4 @@ export type CreateHubInput = z.infer<typeof createHubValidationSchema>;
 export type CreateBookingInput = z.infer<typeof createBookingSchema>;
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
 export type UpdateUserProfileInput = z.infer<typeof updateUserProfileSchema>;
+export type AdminAllBookingsQuery = z.infer<typeof adminAllBookingsQuerySchema>;

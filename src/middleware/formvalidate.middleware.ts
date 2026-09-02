@@ -1,10 +1,9 @@
-import { ZodError } from "zod";
-import { z } from "zod";
+import { ZodError, z } from "zod";
 import { NextFunction, Request, Response } from "express";
 import { logError } from "../config/logger.js";
 
 export const validateFormData =
-  (schema: any) =>
+  (schema: z.ZodSchema) =>
   (req: Request<any, any, any, any>, res: Response, next: NextFunction) => {
     try {
       const parsedData = schema.parse(req.body);
