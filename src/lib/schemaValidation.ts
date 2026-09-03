@@ -426,6 +426,24 @@ export const adminAllBookingsQuerySchema = z.object({
   limit: z.string().optional().transform((val) => (val ? parseInt(val, 10) : 10)),
 });
 
+export const AdminCreateBookingSchema = z.object({
+  hubId: z.string().min(1, "Storage Hub is required"),
+  userId: z.string().optional(), // Optional link to existing user account
+  fullName: z.string().min(1, "Customer full name is required"),
+  email: z.string().email("Invalid email address").optional().or(z.literal("")),
+  phoneNumber: z.string().min(1, "Phone number is required"),
+  selectedCrop: z.string().min(1, "Crop type is required"),
+  quantity: z.number().positive("Quantity must be greater than 0"),
+  unitType: z.enum(["bags", "crates"]).default("bags"),
+  dropOffDate: z.string().datetime({ message: "Invalid drop-off date format" }),
+  pickUpDate: z.string().datetime({ message: "Invalid pick-up date format" }),
+  specialInstructions: z.string().optional(),
+  bookingStatus: z
+    .enum(["pending", "confirmed", "in_storage", "completed", "cancelled"])
+    .default("confirmed"),
+});
+
+
 export type SignupInput = z.infer<typeof validateSignupSchema>;
 export type LoginInput = z.infer<typeof ValidateLoginSchema>;
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
@@ -441,3 +459,4 @@ export type CreateBookingInput = z.infer<typeof createBookingSchema>;
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
 export type UpdateUserProfileInput = z.infer<typeof updateUserProfileSchema>;
 export type AdminAllBookingsQuery = z.infer<typeof adminAllBookingsQuerySchema>;
+export type AdminCreateBookingInput = z.infer<typeof AdminCreateBookingSchema>;

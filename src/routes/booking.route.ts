@@ -4,6 +4,7 @@ import {
   getMyBookings,
   getSingleBooking,
   getAllBookingsAdmin,
+  adminCreateBooking,
 } from "../controllers/booking.controller.js";
 import { isAuthenticated, isAdmin } from "../middleware/auth.middleware.js";
 import {
@@ -14,6 +15,7 @@ import { customRateLimiter } from "../middleware/ratelimit.middleware.js";
 import {
   createBookingSchema,
   adminAllBookingsQuerySchema,
+  AdminCreateBookingSchema,
 } from "../lib/schemaValidation.js";
 
 const router = Router();
@@ -38,6 +40,14 @@ router.get(
   isAdmin,
   validateQueryParams(adminAllBookingsQuerySchema),
   getAllBookingsAdmin,
+);
+
+router.post(
+  "/admin/create",
+  isAuthenticated,
+  isAdmin,
+  validateFormData(AdminCreateBookingSchema),
+  adminCreateBooking,
 );
 
 export default router;

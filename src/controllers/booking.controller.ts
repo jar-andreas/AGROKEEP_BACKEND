@@ -393,3 +393,141 @@ export const getAllBookingsAdmin = tryCatchWrapper(
     });
   }
 );
+
+// controllers/booking.controller.ts
+
+export const adminCreateBooking = tryCatchWrapper(
+  async (req: Request, res: Response) => {
+    const {
+      hubId,
+      userId,
+      fullName,
+      email,
+      phoneNumber,
+      selectedCrop,
+      quantity,
+      unitType,
+      dropOffDate,
+      pickUpDate,
+      specialInstructions,
+      bookingStatus,
+    } = req.body;
+
+    const qty = Number(quantity);
+
+    // 1. Verify Storage Hub existence
+    const hub = await Hub.findById(hubId);
+    if (!hub) {
+      return sendTsRestError(res, 404, "Storage Hub not found");
+    }
+
+    // 2. Validate Available Capacity
+    if (qty > hub.availableCapacity) {
+      return sendTsRestError(
+        res,
+        400,
+        `Requested quantity (${qty}) exceeds available hub capacity (${hub.availableCapacity})`
+      );
+    }
+
+    // 3. Validate Supported Crop
+    const isCropSupported = hub.supportedCrops.some(
+      (crop: string) => crop.toLowerCase() === selectedCrop.toLowerCase()
+    );
+
+    if (!isCropSupported) {
+      return sendTsRestError(
+        res,
+        400,
+        `This storage hub does not support "${selectedCrop}". Supported crops: ${hub.supportedCrops.join(", ")}`
+      );
+    }
+
+    // 4. Validate Unit Type Compatibility
+    const hubUnitType = hub.unitType.toLowerCase();
+    const requestedUnitType = (unitType || "bags").toLowerCase();
+
+    if (hubUnitType !== "both" && hubUnitType !== requestedUnitType) {
+      return sendTsRestError(
+        res,
+        400,
+        `This storage facility only supports "${hub.unitType}" storage. You selected "${unitType}".`
+      );
+    }
+
+    // 5. Calculate Duration in Days
+    const start = new Date(dropOffDate).getTime();
+    const end = new Date(pickUpDate).getTime();
+    const diffTime = end - start;
+    const totalDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    if (totalDays < 1) {
+      return sendTsRestError(
+        res,
+        400,
+        "Pick-up date must be at least 1 day after drop-off date"
+      );
+    }
+
+    // 6. Pricing Calculation
+    const isCrate = requestedUnitType === "crates" || requestedUnitType === "crate";
+    const baseDailyRate = isCrate
+      ? hub.pricePerCratePerDay
+      : hub.pricePerBagPerDay;
+
+    if (!baseDailyRate || baseDailyRate <= 0) {
+      return sendTsRestError(
+        res,
+        400,
+        `This facility does not offer valid pricing for ${unitType} storage`
+      );
+    }
+
+    // Bulk discount threshold check (100+ units)
+    const isBulk = qty >= 100;
+    const dailyPricePerUnit = isBulk
+      ? hub.priceBulk100Units
+      : baseDailyRate;
+
+    const storageFee = Math.round(dailyPricePerUnit * qty * totalDays);
+    const serviceFee = 5000; // Standard service fee
+    const totalAmount = storageFee + serviceFee;
+    const depositAmount = Math.round(totalAmount * 0.3); // 30% standard deposit
+    const balanceAmount = totalAmount - depositAmount;
+
+    // 7. Create Custom Booking ID
+    const bookingId = generateBookingId();
+
+    const booking = await Booking.create({
+      bookingId,
+      hub: hub._id,
+      user: userId || null,
+      cropType: selectedCrop,
+      quantity: qty,
+      unitType: requestedUnitType,
+      dropOffDate: new Date(dropOffDate),
+      pickUpDate: new Date(pickUpDate),
+      durationInDays: totalDays,
+      fullName,
+      phoneNumber,
+      email: email || undefined,
+      specialInstructions: specialInstructions || undefined,
+      dailyPricePerUnit: parseFloat(dailyPricePerUnit.toFixed(2)),
+      storageFee,
+      serviceFee,
+      totalAmount,
+      depositAmount,
+      balanceAmount,
+      bookingStatus: bookingStatus || "confirmed",
+    });
+   
+
+    return sendTsRestSuccess(res, 201, {
+      success: true,
+      message: "Admin booking created successfully",
+      data: {
+        booking,
+      },
+    });
+  }
+);
