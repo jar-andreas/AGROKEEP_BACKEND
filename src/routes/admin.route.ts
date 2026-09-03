@@ -2,6 +2,7 @@ import { Router } from "express";
 import {
   adminCreateBooking,
   getAllBookingsAdmin,
+  getSingleBookingAdmin,
 } from "../controllers/admin.controller.js";
 import {
   adminAllBookingsQuerySchema,
@@ -29,6 +30,13 @@ router.post(
   isAdmin,
   validateFormData(AdminCreateBookingSchema),
   adminCreateBooking,
+);
+
+router.get(
+  "/booking/:id",
+  isAuthenticated,
+  isAdmin,
+  getSingleBookingAdmin,
 );
 
 export default router;

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import mongoose from "mongoose";
 
 export const validateSignupSchema = z
   .object({
@@ -510,6 +511,19 @@ export const AdminCreateBookingSchema = z
     },
   );
 
+  export const getSingleBookingAdminParamSchema = z.object({
+  id: z
+    .string({
+      error: "Booking ID parameter is required",
+    })
+    .trim()
+    .refine((val) => mongoose.Types.ObjectId.isValid(val), {
+      message: "Invalid booking ID format. Must be a valid 24-character hexadecimal string",
+    }),
+});
+
+
+
 export type SignupInput = z.infer<typeof validateSignupSchema>;
 export type LoginInput = z.infer<typeof ValidateLoginSchema>;
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
@@ -526,3 +540,4 @@ export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
 export type UpdateUserProfileInput = z.infer<typeof updateUserProfileSchema>;
 export type AdminAllBookingsQuery = z.infer<typeof adminAllBookingsQuerySchema>;
 export type AdminCreateBookingInput = z.infer<typeof AdminCreateBookingSchema>;
+export type SingleBookingParamsInput = z.infer<typeof getSingleBookingAdminParamSchema>;

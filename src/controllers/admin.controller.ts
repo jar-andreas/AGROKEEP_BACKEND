@@ -4,6 +4,7 @@ import tryCatchWrapper from "../lib/tryCatchWrapper.js";
 import { Request, Response, NextFunction } from "express";
 import Hub from "../models/storageHub.model.js";
 import Booking from "../models/booking.model.js";
+import Payment from "../models/payment.model.js";
 import { sendTsRestError, sendTsRestSuccess } from "../lib/responseHandler.js";
 import { generateBookingId } from "./booking.controller.js";
 
@@ -255,4 +256,110 @@ export const adminCreateBooking = tryCatchWrapper(
       },
     });
   },
+);
+
+export const getSingleBookingAdmin = tryCatchWrapper(
+  async (req: Request<{ id: string }>, res: Response) => {
+    const { id } = req.params;
+
+    // Fetch booking details & populate Hub and User info
+    const booking = await Booking.findById(id)
+      .populate<{
+        hub: {
+          hubName: string;
+          state: string;
+          lga: string;
+          address: string;
+        };
+      }>("hub", "hubName state lga address")
+      .populate<{
+        user: {
+          _id: InstanceType<typeof Booking>["_id"];
+          fullName: string;
+          email: string;
+          phoneNumber: string;
+        };
+      }>("user", "fullName email phoneNumber");
+
+    if (!booking) {
+      return sendTsRestError(res, 404, "Booking not found");
+    }
+
+    // Fetch associated payment details
+    const paymentDetails = await Payment.findOne({ booking: booking._id }).lean();
+
+    return sendTsRestSuccess(res, 200, {
+      success: true,
+      message: "Booking details retrieved successfully",
+      data: {
+        booking: {
+          id: booking._id,
+          bookingCustomId: booking.bookingId, // AGK-004582
+          bookingStatus: booking.bookingStatus,
+
+          // Reservation Summary Card
+          reservationSummary: {
+            hubName: booking.hub?.hubName ?? "N/A",
+            location: `${booking.hub?.lga ?? ""}, ${booking.hub?.state ?? ""}`.trim().replace(/^,|,$/g, ""),
+            crop: booking.cropType,
+            quantity: booking.quantity,
+            unitType: booking.unitType,
+            dropOffDate: booking.dropOffDate,
+            pickUpDate: booking.pickUpDate,
+            durationInDays: booking.durationInDays,
+            durationInWeeks: Math.ceil(booking.durationInDays / 7),
+            totalAmount: booking.totalAmount,
+          },
+
+          // Farmer Card
+          farmer: {
+            userId: booking.user?._id ?? null,
+            fullName: booking.fullName || booking.user?.fullName || "N/A",
+            phoneNumber: booking.phoneNumber || booking.user?.phoneNumber || "N/A",
+            email: booking.email || booking.user?.email || "N/A",
+          },
+
+          // Price Breakdown Card
+          priceBreakdown: {
+            cropType: booking.cropType,
+            dailyPricePerUnit: booking.dailyPricePerUnit,
+            durationInDays: booking.durationInDays,
+            quantity: booking.quantity,
+            unitType: booking.unitType,
+            storageFee: booking.storageFee,
+            serviceFee: booking.serviceFee,
+            totalAmount: booking.totalAmount,
+            depositAmount: booking.depositAmount,
+            balanceAmount: booking.balanceAmount,
+          },
+
+          // Payment Card
+          payment: {
+            method: paymentDetails?.paymentMethod ?? "Debit Card",
+            reference: paymentDetails?.reference ?? booking.paymentReference ?? "N/A",
+            paidAt: paymentDetails?.createdAt ?? booking.updatedAt,
+            status: paymentDetails?.status ?? booking.paymentStatus ?? "unpaid",
+          },
+
+          // Timeline History Card
+          timeline: booking.timeline?.length
+            ? booking.timeline
+            : [
+                {
+                  title: "Booking created",
+                  timestamp: booking.createdAt,
+                },
+                {
+                  title: `30% Deposit - ₦${booking.depositAmount?.toLocaleString()} received`,
+                  timestamp: booking.createdAt,
+                },
+                {
+                  title: "Booking Confirmed",
+                  timestamp: booking.updatedAt,
+                },
+              ],
+        },
+      },
+    });
+  }
 );
