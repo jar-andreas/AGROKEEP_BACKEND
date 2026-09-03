@@ -20,6 +20,11 @@ import hubRoutes from "./src/routes/storageHub.route.js";
 import bookingRoutes from "./src/routes/booking.route.js";
 import paymentRoutes from "./src/routes/payment.route.js";
 
+import dns from "dns";
+
+// Force Node.js to use Google/Cloudflare public DNS for SRV lookup
+dns.setServers(["8.8.8.8", "1.1.1.1"]);
+
 declare global {
   namespace Express {
     interface Request {
@@ -126,7 +131,7 @@ app.get("/session", (req: Request, res: Response) => {
 });
 
 app.use("/api/v1/user", userRoutes);
-app.use("/api/auth", authRoutes);
+app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/contact-us", contactRoutes);
 app.use("/api/v1/hub", hubRoutes);
 app.use("/api/v1/booking", bookingRoutes);

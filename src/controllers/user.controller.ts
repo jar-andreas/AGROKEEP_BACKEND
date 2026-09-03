@@ -268,7 +268,7 @@ export const loginUser = tryCatchWrapper(
 
     // 5. Store session parameters matching your flat global types
     req.session.userId = user._id.toString();
-    req.session.role = user.role || "client";
+    req.session.role = user.role || "admin";
 
     // 6. Explicitly persist session payload to MongoDB before delivering network response
     req.session.save((err) => {

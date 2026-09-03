@@ -35,6 +35,7 @@ router.get("/single-booking/:id", isAuthenticated, getSingleBooking);
 router.get(
   "/admin/all",
   isAuthenticated,
+  isAdmin,
   validateQueryParams(adminAllBookingsQuerySchema),
   getAllBookingsAdmin,
 );
