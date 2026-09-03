@@ -1,4 +1,4 @@
-import { Request, Response, NextFunction } from "express";
+import { Request, Response } from "express";
 import crypto from "crypto";
 import tryCatchWrapper from "../lib/tryCatchWrapper.js";
 import { sendTsRestError, sendTsRestSuccess } from "../lib/responseHandler.js";
@@ -8,7 +8,7 @@ import { sendBookingCreatedEmail } from "../lib/email.js";
 import logger from "../config/logger.js";
 
 // Helper function to generate custom Booking ID (e.g., AK-JFCX7L)
-const generateBookingId = (): string => {
+export const generateBookingId = (): string => {
   const randomStr = crypto.randomBytes(3).toString("hex").toUpperCase();
   return `AK-${randomStr}`;
 };
@@ -59,7 +59,7 @@ export const createBooking = tryCatchWrapper(
       );
     }
 
-    // 2b. Validate Unit Type compatibility with Hub (Handles "both", "bags", or "crates")
+    // 2b. Validate Unit Type compatibility with Hub
     const hubUnitType = hub.unitType.toLowerCase();
     const requestedUnitType = (unitType || "bags").toLowerCase();
 
@@ -99,19 +99,15 @@ export const createBooking = tryCatchWrapper(
       );
     }
 
-    // Check Bulk Threshold (100+ units triggers 5% pre-calculated discount rate)
     const isBulk = qty >= 100;
     const dailyPricePerUnit = isBulk
       ? hub.priceBulk100Units
       : baseDailyRate;
 
-    // Total Storage Fee: rate per unit/day * quantity * days
     const storageFee = Math.round(dailyPricePerUnit * qty * totalDays);
-
-    // Financial breakdown
     const serviceFee = 5000;
     const totalAmount = storageFee + serviceFee;
-    const depositAmount = Math.round(totalAmount * 0.3); // 30% deposit
+    const depositAmount = Math.round(totalAmount * 0.3);
     const balanceAmount = totalAmount - depositAmount;
 
     // 5. Create booking record
@@ -178,6 +174,7 @@ export const createBooking = tryCatchWrapper(
     });
   }
 );
+
 export const getMyBookings = tryCatchWrapper(
   async (req: Request, res: Response) => {
     const userId = req.session.userId;
@@ -186,15 +183,13 @@ export const getMyBookings = tryCatchWrapper(
       return sendTsRestError(
         res,
         401,
-        "Unauthorized. Please log in to continue.",
+        "Unauthorized. Please log in to continue."
       );
     }
 
     const page = Number(req.query.page) || 1;
     const limit = Number(req.query.limit) || 5;
-
     const skip = (page - 1) * limit;
-
     const query = { user: userId };
 
     const [
@@ -245,7 +240,7 @@ export const getMyBookings = tryCatchWrapper(
         },
       },
     });
-  },
+  }
 );
 
 export const getSingleBooking = tryCatchWrapper(
@@ -256,7 +251,6 @@ export const getSingleBooking = tryCatchWrapper(
       return sendTsRestError(res, 400, "Booking ID is required");
     }
 
-    // Support both 24-char Mongo ObjectIds and custom IDs (e.g. AK-JFCX7K)
     const isObjectId = /^[0-9a-fA-F]{24}$/.test(id);
     const query = isObjectId ? { _id: id } : { bookingId: id.toUpperCase() };
 
@@ -275,10 +269,11 @@ export const getSingleBooking = tryCatchWrapper(
     if (!booking) {
       return sendTsRestError(res, 404, "Booking not found");
     }
+
     return sendTsRestSuccess(res, 200, {
       success: true,
       message: "Booking retrieved successfully",
       data: { booking },
     });
-  },
+  }
 );

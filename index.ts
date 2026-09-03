@@ -19,6 +19,12 @@ import contactRoutes from "./src/routes/contactUs.route.js";
 import hubRoutes from "./src/routes/storageHub.route.js";
 import bookingRoutes from "./src/routes/booking.route.js";
 import paymentRoutes from "./src/routes/payment.route.js";
+import adminRoutes from "./src/routes/admin.route.js";
+
+import dns from "dns";
+
+// Force Node.js to use Google/Cloudflare public DNS for SRV lookup
+dns.setServers(["8.8.8.8", "1.1.1.1"]);
 
 declare global {
   namespace Express {
@@ -133,6 +139,7 @@ app.use("/api/v1/contact-us", contactRoutes);
 app.use("/api/v1/hub", hubRoutes);
 app.use("/api/v1/booking", bookingRoutes);
 app.use("/api/v1/payment", paymentRoutes);
+app.use("/api/v1/admin", adminRoutes);
 
 // Handle 404
 app.use(notFoundRoutes);

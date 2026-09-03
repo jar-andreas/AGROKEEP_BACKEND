@@ -413,6 +413,103 @@ export const changePasswordSchema = z
     path: ["confirmPassword"], // Attaches the error to confirmPassword field
   });
 
+export const adminAllBookingsQuerySchema = z.object({
+  search: z.string().optional(),
+  status: z.string().optional(),
+  state: z.string().optional(),
+  storageHub: z.string().optional(),
+  cropType: z.string().optional(),
+  paymentStatus: z.string().optional(),
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
+  page: z
+    .string()
+    .optional()
+    .transform((val) => (val ? parseInt(val, 10) : 1)),
+  limit: z
+    .string()
+    .optional()
+    .transform((val) => (val ? parseInt(val, 10) : 10)),
+});
+
+export const AdminCreateBookingSchema = z
+  .object({
+    hubId: z.string().min(1, "Storage Hub is required"),
+    userId: z.string().optional(), // Optional link to existing user account
+    fullName: z.string().min(1, "Customer full name is required"),
+    email: z
+      .string()
+      .email("Invalid email address")
+      .optional()
+      .or(z.literal("")),
+    phoneNumber: z.string().min(1, "Phone number is required"),
+    selectedCrop: z.string().min(1, "Crop type is required"),
+    quantity: z.number().positive("Quantity must be greater than 0"),
+    unitType: z.enum(["bags", "crates"]).default("bags"),
+    // 🗓️ Drop-off Date Validation
+    dropOffDate: z
+      .string()
+      .refine(
+        (dateString) => {
+          const selectedDate = new Date(dateString);
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          return !isNaN(selectedDate.getTime()) && selectedDate >= today;
+        },
+        { message: "Drop-off date must be a valid present or future date" },
+      )
+      .refine(
+        (dateString) => {
+          const date = new Date(dateString);
+          // getUTCDay(): 0 = Sunday
+          return date.getUTCDay() !== 0;
+        },
+        {
+          message:
+            "Facilities are closed on Sundays. Please pick a Monday - Saturday drop-off date.",
+        },
+      ),
+
+    // 🗓️ Pick-up Date Validation (Replaces durationInDays)
+    pickUpDate: z
+      .string()
+      .refine(
+        (dateString) => {
+          const selectedDate = new Date(dateString);
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          return !isNaN(selectedDate.getTime()) && selectedDate >= today;
+        },
+        { message: "Pick-up date must be a valid present or future date" },
+      )
+      .refine(
+        (dateString) => {
+          const date = new Date(dateString);
+          return date.getUTCDay() !== 0;
+        },
+        {
+          message:
+            "Facilities are closed on Sundays. Please pick a Monday - Saturday pick-up date.",
+        },
+      ),
+
+    specialInstructions: z.string().optional(),
+    bookingStatus: z
+      .enum(["pending", "confirmed", "in_storage", "completed", "cancelled"])
+      .default("confirmed"),
+  })
+  .refine(
+    (data) => {
+      const dropOff = new Date(data.dropOffDate);
+      const pickUp = new Date(data.pickUpDate);
+      return pickUp > dropOff;
+    },
+    {
+      message: "Pick-up date must be at least 1 day after the drop-off date",
+      path: ["pickUpDate"], // Attaches error directly to pickUpDate in frontend forms
+    },
+  );
+
 export type SignupInput = z.infer<typeof validateSignupSchema>;
 export type LoginInput = z.infer<typeof ValidateLoginSchema>;
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
@@ -427,3 +524,5 @@ export type CreateHubInput = z.infer<typeof createHubValidationSchema>;
 export type CreateBookingInput = z.infer<typeof createBookingSchema>;
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
 export type UpdateUserProfileInput = z.infer<typeof updateUserProfileSchema>;
+export type AdminAllBookingsQuery = z.infer<typeof adminAllBookingsQuerySchema>;
+export type AdminCreateBookingInput = z.infer<typeof AdminCreateBookingSchema>;

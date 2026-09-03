@@ -24,7 +24,7 @@ export const isAdmin = (
     sendTsRestError(res, 401 , "Unauthorized.Please log in to continue");
     return;
   }
-  if (req.session.role !=="admin"){
+  if (req.session.role !== "admin"){
     sendTsRestError(res,403, "Unauthorized. Admin access required");
     return;
   }

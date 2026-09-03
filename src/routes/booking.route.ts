@@ -1,13 +1,13 @@
 import { Router } from "express";
-import { validateFormData } from "../middleware/formvalidate.middleware.js";
-import { isAuthenticated } from "../middleware/auth.middleware.js";
-import { createBookingSchema } from "../lib/schemaValidation.js";
 import {
   createBooking,
   getMyBookings,
   getSingleBooking,
 } from "../controllers/booking.controller.js";
+import { isAuthenticated } from "../middleware/auth.middleware.js";
+import { validateFormData } from "../middleware/formvalidate.middleware.js";
 import { customRateLimiter } from "../middleware/ratelimit.middleware.js";
+import { createBookingSchema } from "../lib/schemaValidation.js";
 
 const router = Router();
 
