@@ -14,6 +14,7 @@ import {
   normalizeUnitType,
   validateHubForBooking,
 } from "../services/bookingPricing.service.js";
+import { normalizeToCalendarDate } from "../lib/dateUtils.js";
 
 // Helper function to generate custom Booking ID (e.g., AK-JFCX7L)
 export const generateBookingId = (): string => {
@@ -40,6 +41,11 @@ export const createBooking = tryCatchWrapper(
     // by the createBookingSchema middleware on this route.
     const requestedUnitType = normalizeUnitType(unitType);
     const userId = req.session?.userId;
+    // Pin both dates to a specific calendar day so the lifecycle sweep's
+    // date comparisons can't drift a day early/late depending on what
+    // time-of-day/timezone the client happened to send.
+    const normalizedDropOffDate = normalizeToCalendarDate(dropOffDate);
+    const normalizedPickUpDate = normalizeToCalendarDate(pickUpDate);
 
     const hub = await Hub.findById(hubId);
     if (!hub) {
@@ -60,7 +66,10 @@ export const createBooking = tryCatchWrapper(
       );
     }
 
-    const totalDays = calculateDurationInDays(dropOffDate, pickUpDate);
+    const totalDays = calculateDurationInDays(
+      normalizedDropOffDate,
+      normalizedPickUpDate,
+    );
     if (totalDays < 1) {
       return sendTsRestError(
         res,
@@ -90,8 +99,8 @@ export const createBooking = tryCatchWrapper(
       cropType: selectedCrop,
       quantity,
       unitType: requestedUnitType,
-      dropOffDate: new Date(dropOffDate),
-      pickUpDate: new Date(pickUpDate),
+      dropOffDate: normalizedDropOffDate,
+      pickUpDate: normalizedPickUpDate,
       durationInDays: totalDays,
       fullName,
       phoneNumber,

@@ -2,7 +2,9 @@ import { Router } from "express";
 import {
   adminCreateBooking,
   cancelBookingAdmin,
+  completeRefundAdmin,
   getAllBookingsAdmin,
+  getRefundsQueueAdmin,
   getSingleBookingAdmin,
 } from "../controllers/admin.controller.js";
 import {
@@ -49,6 +51,16 @@ router.patch(
   isAdmin,
   validateParams(getSingleBookingAdminParamSchema),
   cancelBookingAdmin,
+);
+
+router.get("/refunds", isAuthenticated, isAdmin, getRefundsQueueAdmin);
+
+router.patch(
+  "/refunds/:id/complete",
+  isAuthenticated,
+  isAdmin,
+  validateParams(getSingleBookingAdminParamSchema),
+  completeRefundAdmin,
 );
 
 export default router;

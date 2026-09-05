@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import User from "../models/user.model.js";
 import crypto from "crypto";
 import {
@@ -19,8 +20,25 @@ import {
   normalizeUnitType,
   validateHubForBooking,
 } from "../services/bookingPricing.service.js";
-import { sendAdminBookingCreatedEmail } from "../lib/email.js";
+import {
+  sendAdminBookingCreatedEmail,
+  sendBookingCancelledEmail,
+} from "../lib/email.js";
+import { normalizeToCalendarDate } from "../lib/dateUtils.js";
 import logger from "../config/logger.js";
+
+// The frontend's Status filter shows "Active" for a booking whose produce is
+// currently in storage — but bookingStatus itself only ever stores the real
+// enum value ("in_storage"), never "active". Accept the display label as an
+// alias so the filter still works regardless of which one the client sends.
+const BOOKING_STATUS_ALIASES: Record<string, string> = {
+  active: "in_storage",
+};
+
+const resolveBookingStatusFilter = (status: string): string => {
+  const normalized = status.toLowerCase();
+  return BOOKING_STATUS_ALIASES[normalized] ?? normalized;
+};
 
 export const getAllBookingsAdmin = tryCatchWrapper(
   async (req: Request<{}, {}, {}, AdminAllBookingsQuery>, res: Response) => {
@@ -64,7 +82,7 @@ export const getAllBookingsAdmin = tryCatchWrapper(
 
     // 2. Exact Dropdown Filters
     if (status && status !== "All Statuses") {
-      filter.bookingStatus = status.toLowerCase();
+      filter.bookingStatus = resolveBookingStatusFilter(status);
     }
 
     if (cropType && cropType !== "All Crop Types") {
@@ -143,6 +161,11 @@ export const getAllBookingsAdmin = tryCatchWrapper(
 const generateAdminPaymentReference = (): string =>
   `ADM-${crypto.randomBytes(4).toString("hex").toUpperCase()}`;
 
+// Thrown inside the create-booking transaction to abort it cleanly when the
+// atomic capacity reservation loses a race — distinguished from unexpected
+// errors so the outer catch can turn it into a friendly 400.
+class CapacityConflictError extends Error {}
+
 export const adminCreateBooking = tryCatchWrapper(
   async (req: Request<{}, {}, AdminCreateBookingInput>, res: Response) => {
     const {
@@ -164,10 +187,26 @@ export const adminCreateBooking = tryCatchWrapper(
     // Body is already validated (and quantity coerced to a positive number)
     // by the AdminCreateBookingSchema middleware on this route.
     const requestedUnitType = normalizeUnitType(unitType);
+    // Pin both dates to a specific calendar day so the lifecycle sweep's
+    // date comparisons can't drift a day early/late depending on what
+    // time-of-day/timezone the client happened to send.
+    const normalizedDropOffDate = normalizeToCalendarDate(dropOffDate);
+    const normalizedPickUpDate = normalizeToCalendarDate(pickUpDate);
 
     const hub = await Hub.findById(hubId);
     if (!hub) {
       return sendTsRestError(res, 404, "Storage Hub not found");
+    }
+
+    if (userId) {
+      const referencedUser = await User.findById(userId).select("_id");
+      if (!referencedUser) {
+        return sendTsRestError(
+          res,
+          404,
+          "The selected existing farmer account could not be found",
+        );
+      }
     }
 
     const validationError = validateHubForBooking(
@@ -184,7 +223,10 @@ export const adminCreateBooking = tryCatchWrapper(
       );
     }
 
-    const totalDays = calculateDurationInDays(dropOffDate, pickUpDate);
+    const totalDays = calculateDurationInDays(
+      normalizedDropOffDate,
+      normalizedPickUpDate,
+    );
     if (totalDays < 1) {
       return sendTsRestError(
         res,
@@ -206,45 +248,98 @@ export const adminCreateBooking = tryCatchWrapper(
     const pricing = pricingResult;
 
     const bookingId = generateBookingId();
+    const resolvedBookingStatus = bookingStatus || "confirmed";
     // Admin is recording a payment already collected offline, so the booking
     // is created as paid rather than "unpaid" (the default for the public,
     // Paystack-driven flow in booking.controller.ts).
     const paymentStatus =
       paymentType === "full" ? "fully_paid" : "partial_deposit_paid";
 
-    const booking = await Booking.create({
-      bookingId,
-      hub: hub._id,
-      user: userId || null,
-      cropType: selectedCrop,
-      quantity,
-      unitType: requestedUnitType,
-      dropOffDate: new Date(dropOffDate),
-      pickUpDate: new Date(pickUpDate),
-      durationInDays: totalDays,
-      fullName,
-      phoneNumber,
-      email: email || undefined,
-      specialInstructions: specialInstructions || undefined,
-      ...pricing,
-      bookingStatus: bookingStatus || "confirmed",
-      paymentStatus,
-    });
+    // Reserving capacity, creating the booking, creating its payment record,
+    // and linking the two together must all succeed or all fail as one unit
+    // — otherwise a mid-sequence failure (e.g. a bookingId collision) could
+    // leave capacity permanently deducted with no booking behind it, or a
+    // booking marked "paid" with no Payment document backing it up.
+    const session = await mongoose.startSession();
+    let booking: any;
+    let payment: any;
 
-    const payment = await Payment.create({
-      user: userId || undefined,
-      booking: booking._id,
-      hub: hub._id,
-      reference: generateAdminPaymentReference(),
-      paymentMethod: "cash",
-      paymentType,
-      amount: pricing.depositAmount,
-      status: "success",
-      paidAt: new Date(),
-    });
+    try {
+      await session.withTransaction(async () => {
+        // A "confirmed" booking occupies real hub capacity, so reserve it
+        // now — atomically, so two admins can't both book the last of the
+        // same slot. A "pending" booking (rare from this endpoint — the
+        // modal has no status picker) doesn't reserve capacity, mirroring
+        // the public flow where capacity is only deducted once payment
+        // confirms the booking.
+        if (resolvedBookingStatus !== "pending") {
+          const reservedHub = await Hub.findOneAndUpdate(
+            { _id: hub._id, availableCapacity: { $gte: quantity } },
+            { $inc: { availableCapacity: -quantity } },
+            { new: true, session },
+          );
+          if (!reservedHub) {
+            throw new CapacityConflictError(
+              `Requested quantity (${quantity}) exceeds available hub capacity (${hub.availableCapacity})`,
+            );
+          }
+        }
 
-    booking.paymentReference = payment.reference;
-    await booking.save();
+        const [createdBooking] = await Booking.create(
+          [
+            {
+              bookingId,
+              hub: hub._id,
+              user: userId || null,
+              cropType: selectedCrop,
+              quantity,
+              unitType: requestedUnitType,
+              dropOffDate: normalizedDropOffDate,
+              pickUpDate: normalizedPickUpDate,
+              durationInDays: totalDays,
+              fullName,
+              phoneNumber,
+              email: email || undefined,
+              specialInstructions: specialInstructions || undefined,
+              ...pricing,
+              bookingStatus: resolvedBookingStatus,
+              paymentStatus,
+            },
+          ],
+          { session },
+        );
+
+        const [createdPayment] = await Payment.create(
+          [
+            {
+              user: userId || undefined,
+              booking: createdBooking._id,
+              hub: hub._id,
+              reference: generateAdminPaymentReference(),
+              paymentMethod: "cash",
+              paymentType,
+              amount: pricing.depositAmount,
+              status: "success",
+              paidAt: new Date(),
+            },
+          ],
+          { session },
+        );
+
+        createdBooking.paymentReference = createdPayment.reference;
+        await createdBooking.save({ session });
+
+        booking = createdBooking;
+        payment = createdPayment;
+      });
+    } catch (error) {
+      if (error instanceof CapacityConflictError) {
+        return sendTsRestError(res, 400, error.message);
+      }
+      throw error;
+    } finally {
+      await session.endSession();
+    }
 
     const recipientEmail = booking.email;
     if (recipientEmail) {
@@ -285,35 +380,114 @@ export const adminCreateBooking = tryCatchWrapper(
   },
 );
 
+// Cancellation is only meaningful before the produce has actually arrived.
+// Once storage has started (or the booking is already at a terminal status)
+// it can no longer be plainly cancelled.
+const CANCELLABLE_STATUSES = ["pending", "confirmed"];
+const PAID_STATUSES = ["partial_deposit_paid", "fully_paid"];
+
 export const cancelBookingAdmin = tryCatchWrapper(
   async (req: Request<SingleBookingParamsInput>, res: Response) => {
     const { id } = req.params;
 
-    const booking = await Booking.findById(id);
-    if (!booking) {
-      return sendTsRestError(res, 404, "Booking not found");
+    const session = await mongoose.startSession();
+    // Holds the booking as it was *before* cancellation — the atomic query
+    // below only matches (and only returns a document) if the booking was
+    // actually still pending/confirmed at write time, which is also how we
+    // know whether capacity/a refund needs to be released for it.
+    let previousBooking: any = null;
+
+    try {
+      await session.withTransaction(async () => {
+        // A single atomic update, guarded by status at write time — this is
+        // what stops two overlapping cancel requests (or a cancel racing the
+        // lifecycle cron's confirmed->in_storage sweep) from both reading
+        // "confirmed" and both crediting capacity back.
+        previousBooking = await Booking.findOneAndUpdate(
+          { _id: id, bookingStatus: { $in: CANCELLABLE_STATUSES } },
+          [
+            {
+              $set: {
+                bookingStatus: "cancelled",
+                paymentStatus: {
+                  $cond: [
+                    { $in: ["$paymentStatus", PAID_STATUSES] },
+                    "refund_required",
+                    "$paymentStatus",
+                  ],
+                },
+              },
+            },
+          ],
+          { new: false, session },
+        ).populate<{
+          hub: { _id: InstanceType<typeof Hub>["_id"]; name: string };
+        }>("hub", "name");
+
+        if (!previousBooking) {
+          return;
+        }
+
+        const hadCapacityReserved = previousBooking.bookingStatus === "confirmed";
+        if (hadCapacityReserved) {
+          await Hub.findByIdAndUpdate(
+            previousBooking.hub._id,
+            { $inc: { availableCapacity: previousBooking.quantity } },
+            { session },
+          );
+        }
+      });
+    } finally {
+      await session.endSession();
     }
 
-    // Cancellation is only meaningful before the produce has actually arrived.
-    // Once storage has started (or the booking is already at a terminal
-    // status) it can no longer be plainly cancelled.
-    const CANCELLABLE_STATUSES = ["pending", "confirmed"];
-    if (!CANCELLABLE_STATUSES.includes(booking.bookingStatus)) {
+    if (!previousBooking) {
+      const existing = await Booking.findById(id).select("bookingStatus").lean();
+      if (!existing) {
+        return sendTsRestError(res, 404, "Booking not found");
+      }
       return sendTsRestError(
         res,
         400,
-        `This booking cannot be cancelled because it is already "${booking.bookingStatus}". Only pending or confirmed bookings can be cancelled.`,
+        `This booking cannot be cancelled because it is already "${existing.bookingStatus}". Only pending or confirmed bookings can be cancelled.`,
       );
     }
 
-    booking.bookingStatus = "cancelled";
-    await booking.save();
+    const hadPayment = PAID_STATUSES.includes(previousBooking.paymentStatus);
+    const finalPaymentStatus = hadPayment
+      ? "refund_required"
+      : previousBooking.paymentStatus;
+
+    if (previousBooking.email) {
+      sendBookingCancelledEmail(
+        previousBooking.email,
+        previousBooking.fullName || "AgroKeep Customer",
+        previousBooking.bookingId,
+        previousBooking.hub?.name ?? "your storage hub",
+        previousBooking.cropType,
+        previousBooking.quantity,
+        previousBooking.unitType,
+        previousBooking.dropOffDate,
+        previousBooking.pickUpDate,
+        finalPaymentStatus,
+      ).catch((err) => {
+        logger.error("Failed to send booking cancellation email:", err.message);
+      });
+    } else {
+      logger.warn(
+        `Skipping booking cancellation email: No email on file for booking ${previousBooking.bookingId}`,
+      );
+    }
 
     return sendTsRestSuccess(res, 200, {
       success: true,
       message: "Booking cancelled successfully",
       data: {
-        booking,
+        booking: {
+          ...previousBooking.toObject(),
+          bookingStatus: "cancelled",
+          paymentStatus: finalPaymentStatus,
+        },
       },
     });
   },
@@ -426,6 +600,102 @@ export const getSingleBookingAdmin = tryCatchWrapper(
                 },
               ],
         },
+      },
+    });
+  },
+);
+
+export const getRefundsQueueAdmin = tryCatchWrapper(
+  async (req: Request, res: Response) => {
+    const page = Number(req.query.page) || 1;
+    const limit = Number(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    const filter = { paymentStatus: "refund_required" };
+
+    const [bookings, total] = await Promise.all([
+      Booking.find(filter)
+        .populate({ path: "hub", select: "name slug state lga address" })
+        .populate({ path: "user", select: "fullName email phoneNumber" })
+        .sort({ updatedAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      Booking.countDocuments(filter),
+    ]);
+
+    // Attach each booking's payment record (method/reference/amount) so the
+    // admin can see what to actually refund without a second lookup per row.
+    const payments = await Payment.find({
+      booking: { $in: bookings.map((b) => b._id) },
+    }).lean();
+    const paymentByBooking = new Map(
+      payments.map((p) => [String(p.booking), p]),
+    );
+
+    const refunds = bookings.map((booking) => ({
+      booking,
+      payment: paymentByBooking.get(String(booking._id)) ?? null,
+    }));
+
+    return sendTsRestSuccess(res, 200, {
+      success: true,
+      message:
+        refunds.length > 0
+          ? "Refund queue retrieved successfully"
+          : "No refunds currently pending",
+      data: {
+        refunds,
+        pagination: {
+          total,
+          currentPage: page,
+          totalPages: Math.ceil(total / limit),
+          hasNextPage: page * limit < total,
+          hasPrevPage: page > 1,
+          limit,
+        },
+      },
+    });
+  },
+);
+
+export const completeRefundAdmin = tryCatchWrapper(
+  async (req: Request<SingleBookingParamsInput>, res: Response) => {
+    const { id } = req.params;
+
+    // Atomic, status-guarded update — same reasoning as cancelBookingAdmin:
+    // only a booking that's actually still queued for refund can be marked
+    // refunded, and only one concurrent request can win the transition.
+    const booking = await Booking.findOneAndUpdate(
+      { _id: id, paymentStatus: "refund_required" },
+      { $set: { paymentStatus: "refunded" } },
+      { new: true },
+    );
+
+    if (!booking) {
+      const existing = await Booking.findById(id)
+        .select("paymentStatus")
+        .lean();
+      if (!existing) {
+        return sendTsRestError(res, 404, "Booking not found");
+      }
+      return sendTsRestError(
+        res,
+        400,
+        `This booking isn't queued for a refund (its payment status is "${existing.paymentStatus}").`,
+      );
+    }
+
+    await Payment.updateMany(
+      { booking: booking._id },
+      { $set: { status: "refunded" } },
+    );
+
+    return sendTsRestSuccess(res, 200, {
+      success: true,
+      message: "Refund marked as completed",
+      data: {
+        booking,
       },
     });
   },

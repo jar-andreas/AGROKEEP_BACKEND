@@ -20,6 +20,7 @@ import hubRoutes from "./src/routes/storageHub.route.js";
 import bookingRoutes from "./src/routes/booking.route.js";
 import paymentRoutes from "./src/routes/payment.route.js";
 import adminRoutes from "./src/routes/admin.route.js";
+import { startBookingLifecycleJob } from "./src/jobs/bookingLifecycle.job.js";
 
 import dns from "dns";
 
@@ -153,6 +154,7 @@ const startServer = async (): Promise<void> => {
   let server: any;
   try {
     await connectDB();
+    startBookingLifecycleJob();
     server = app.listen(PORT, "0.0.0.0", () => {
       logger.info(
         `\n✅ Server running in ${env.NODE_ENV} mode on port ${PORT}`,
