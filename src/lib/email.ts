@@ -397,6 +397,132 @@ export const sendBookingCreatedEmail = async (
   });
 };
 
+export const sendAdminBookingCreatedEmail = async (
+  to: string,
+  toName: string,
+  bookingId: string,
+  hubName: string,
+  cropType: string,
+  quantity: number,
+  unitType: string,
+  dropOffDate: Date,
+  pickUpDate: Date,
+  totalAmount: number,
+  depositAmount: number,
+  balanceAmount: number,
+  paymentType: "deposit" | "full",
+): Promise<boolean> => {
+  const formattedDropOff = new Date(dropOffDate).toLocaleDateString("en-NG", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+  const formattedPickUp = new Date(pickUpDate).toLocaleDateString("en-NG", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+
+  const paymentRow =
+    paymentType === "full"
+      ? `
+        <tr>
+          <td style="color:#15803D;font-size:14px;font-weight:bold;">Payment Status:</td>
+          <td align="right" style="color:#15803D;font-size:16px;font-weight:bold;">Paid in Full</td>
+        </tr>`
+      : `
+        <tr>
+          <td style="color:#15803D;font-size:14px;font-weight:bold;">Deposit Paid (30%):</td>
+          <td align="right" style="color:#15803D;font-size:16px;font-weight:bold;">₦${depositAmount.toLocaleString()} NGN</td>
+        </tr>
+        <tr>
+          <td style="color:#475569;font-size:14px;font-weight:bold;">Balance Due on Drop-off:</td>
+          <td align="right" style="color:#1e293b;font-size:14px;">₦${balanceAmount.toLocaleString()} NGN</td>
+        </tr>`;
+
+  const htmlContent = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+        <title>Booking Confirmation</title>
+      </head>
+      <body style="margin:0;padding:0;background-color:#f8fafc;font-family:Arial,sans-serif;">
+        <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f8fafc;padding:40px 0;">
+          <tr>
+            <td align="center">
+              <table width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,0.03);border:1px solid #e2e8f0;">
+                <tr>
+                  <td style="background-color:#15803D;padding:36px 40px;text-align:center;">
+                    <h1 style="color:#ffffff;margin:0;font-size:28px;letter-spacing:1px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">Agro<span style="color:#F59E0B;">Keep</span></h1>
+                    <p style="color:#dcfce7;margin:6px 0 0;font-size:12px;letter-spacing:2px;text-transform:uppercase;">Booking Confirmed</p>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:40px;background-color:#ffffff;">
+                    <h2 style="color:#1e293b;margin:0 0 16px;font-size:20px;font-weight:700;">A Reservation Was Made For You 🌾</h2>
+                    <p style="color:#475569;font-size:15px;line-height:1.6;margin:0 0 24px;">
+                      Hi <strong>${toName}</strong>, the AgroKeep team has reserved storage space on your behalf at <strong>${hubName}</strong>. Below are your booking details:
+                    </p>
+
+                    <div style="background-color:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:20px;margin-bottom:24px;">
+                      <table width="100%" cellpadding="6" cellspacing="0">
+                        <tr>
+                          <td style="color:#475569;font-size:14px;font-weight:bold;">Booking ID:</td>
+                          <td align="right" style="color:#15803D;font-size:15px;font-weight:bold;font-family:monospace;">${bookingId}</td>
+                        </tr>
+                        <tr>
+                          <td style="color:#475569;font-size:14px;font-weight:bold;">Crop Type:</td>
+                          <td align="right" style="color:#1e293b;font-size:14px;">${cropType}</td>
+                        </tr>
+                        <tr>
+                          <td style="color:#475569;font-size:14px;font-weight:bold;">Quantity:</td>
+                          <td align="right" style="color:#1e293b;font-size:14px;">${quantity} ${unitType}</td>
+                        </tr>
+                        <tr>
+                          <td style="color:#475569;font-size:14px;font-weight:bold;">Drop-off Date:</td>
+                          <td align="right" style="color:#1e293b;font-size:14px;">${formattedDropOff}</td>
+                        </tr>
+                        <tr>
+                          <td style="color:#475569;font-size:14px;font-weight:bold;">Pick-up Date:</td>
+                          <td align="right" style="color:#1e293b;font-size:14px;">${formattedPickUp}</td>
+                        </tr>
+                        <tr>
+                          <td style="color:#475569;font-size:14px;font-weight:bold;">Total Amount:</td>
+                          <td align="right" style="color:#1e293b;font-size:14px;font-weight:bold;">₦${totalAmount.toLocaleString()} NGN</td>
+                        </tr>
+                        ${paymentRow}
+                      </table>
+                    </div>
+
+                    <p style="color:#475569;font-size:14px;line-height:1.6;margin:0;">
+                      If you have any questions about this reservation, please contact AgroKeep support and reference your Booking ID above.
+                    </p>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="background-color:#f8fafc;padding:24px 40px;text-align:center;border-top:1px solid #f1f5f9;">
+                    <p style="color:#94a3b8;font-size:12px;margin:0;">&copy; ${new Date().getFullYear()} AgroKeep Ecosystems. All rights reserved.</p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </body>
+    </html>
+  `;
+
+  return sendEmail({
+    to,
+    toName,
+    subject: `A Booking Was Made For You [${bookingId}]`,
+    htmlContent,
+    textContent: `Hi ${toName}, the AgroKeep team reserved storage space for you at ${hubName}. Booking ${bookingId}: ${quantity} ${unitType} of ${cropType}. Drop-off: ${formattedDropOff}, Pick-up: ${formattedPickUp}. Total: ₦${totalAmount.toLocaleString()} NGN. ${paymentType === "full" ? "Paid in full." : `Deposit paid: ₦${depositAmount.toLocaleString()} NGN, balance due on drop-off: ₦${balanceAmount.toLocaleString()} NGN.`}`,
+  });
+};
+
 export const sendPaymentSuccessEmail = async (
   to: string,
   toName: string,

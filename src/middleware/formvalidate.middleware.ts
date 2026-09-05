@@ -26,6 +26,32 @@ export const validateFormData =
     }
   };
 
+export const validateParams = (schema: z.ZodSchema) => {
+  return (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const result = schema.safeParse(req.params);
+
+      if (!result.success) {
+        logError(
+          new Error("Validation failed"),
+          "Route parameter validation failed",
+        );
+
+        return res.status(400).json({
+          success: false,
+          message: "Validation failed",
+          errors: result.error.issues,
+        });
+      }
+
+      return next();
+    } catch (error: any) {
+      logError(error, "Unhandled exception in param validation middleware");
+      return next(error);
+    }
+  };
+};
+
 export const validateQueryParams = (schema: z.ZodSchema) => {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {

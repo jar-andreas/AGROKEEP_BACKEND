@@ -6,6 +6,14 @@ import Booking from "../models/booking.model.js";
 import Hub from "../models/storageHub.model.js";
 import { sendBookingCreatedEmail } from "../lib/email.js";
 import logger from "../config/logger.js";
+import { CreateBookingInput } from "../lib/schemaValidation.js";
+import {
+  calculateBookingPricing,
+  calculateDurationInDays,
+  isPricingError,
+  normalizeUnitType,
+  validateHubForBooking,
+} from "../services/bookingPricing.service.js";
 
 // Helper function to generate custom Booking ID (e.g., AK-JFCX7L)
 export const generateBookingId = (): string => {
@@ -14,7 +22,7 @@ export const generateBookingId = (): string => {
 };
 
 export const createBooking = tryCatchWrapper(
-  async (req: Request, res: Response) => {
+  async (req: Request<{}, {}, CreateBookingInput>, res: Response) => {
     const {
       hubId,
       selectedCrop,
@@ -28,87 +36,49 @@ export const createBooking = tryCatchWrapper(
       specialInstructions,
     } = req.body;
 
-    const qty = Number(quantity);
+    // Body is already validated (and quantity coerced to a positive number)
+    // by the createBookingSchema middleware on this route.
+    const requestedUnitType = normalizeUnitType(unitType);
     const userId = req.session?.userId;
 
-    // 1. Verify storage hub
     const hub = await Hub.findById(hubId);
     if (!hub) {
       return sendTsRestError(res, 404, "Storage Hub not found");
     }
 
-    // Validate available capacity
-    if (qty > hub.availableCapacity) {
-      return sendTsRestError(
-        res,
-        400,
-        `Requested quantity (${qty}) exceeds available hub capacity (${hub.availableCapacity})`
-      );
-    }
-
-    // 2. Validate Supported Crop
-    const isCropSupported = hub.supportedCrops.some(
-      (crop: string) => crop.toLowerCase() === selectedCrop.toLowerCase()
+    const validationError = validateHubForBooking(
+      hub,
+      quantity,
+      selectedCrop,
+      requestedUnitType,
     );
-
-    if (!isCropSupported) {
+    if (validationError) {
       return sendTsRestError(
         res,
-        400,
-        `This storage hub does not support "${selectedCrop}". Supported crops: ${hub.supportedCrops.join(", ")}`
+        validationError.status,
+        validationError.message,
       );
     }
 
-    // 2b. Validate Unit Type compatibility with Hub
-    const hubUnitType = hub.unitType.toLowerCase();
-    const requestedUnitType = (unitType || "bags").toLowerCase();
-
-    if (hubUnitType !== "both" && hubUnitType !== requestedUnitType) {
-      return sendTsRestError(
-        res,
-        400,
-        `This storage facility only supports "${hub.unitType}" storage. You selected "${unitType}".`
-      );
-    }
-
-    // 3. Calculate duration in days directly from dates
-    const start = new Date(dropOffDate).getTime();
-    const end = new Date(pickUpDate).getTime();
-    const diffTime = end - start;
-    const totalDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
+    const totalDays = calculateDurationInDays(dropOffDate, pickUpDate);
     if (totalDays < 1) {
       return sendTsRestError(
         res,
         400,
-        "Pick-up date must be at least 1 day after drop-off date"
+        "Pick-up date must be at least 1 day after drop-off date",
       );
     }
 
-    // 4. Calculate Pricing based on Schema Fields
-    const isCrate = requestedUnitType === "crates" || requestedUnitType === "crate";
-    const baseDailyRate = isCrate
-      ? hub.pricePerCratePerDay
-      : hub.pricePerBagPerDay;
-
-    if (!baseDailyRate || baseDailyRate <= 0) {
-      return sendTsRestError(
-        res,
-        400,
-        `This facility does not offer valid pricing for ${unitType} storage`
-      );
+    const pricingResult = calculateBookingPricing(
+      hub,
+      quantity,
+      requestedUnitType,
+      totalDays,
+    );
+    if (isPricingError(pricingResult)) {
+      return sendTsRestError(res, pricingResult.status, pricingResult.message);
     }
-
-    const isBulk = qty >= 100;
-    const dailyPricePerUnit = isBulk
-      ? hub.priceBulk100Units
-      : baseDailyRate;
-
-    const storageFee = Math.round(dailyPricePerUnit * qty * totalDays);
-    const serviceFee = 5000;
-    const totalAmount = storageFee + serviceFee;
-    const depositAmount = Math.round(totalAmount * 0.3);
-    const balanceAmount = totalAmount - depositAmount;
+    const pricing = pricingResult;
 
     // 5. Create booking record
     const bookingId = generateBookingId();
@@ -118,8 +88,8 @@ export const createBooking = tryCatchWrapper(
       hub: hub._id,
       user: userId || null,
       cropType: selectedCrop,
-      quantity: qty,
-      unitType: unitType || "bags",
+      quantity,
+      unitType: requestedUnitType,
       dropOffDate: new Date(dropOffDate),
       pickUpDate: new Date(pickUpDate),
       durationInDays: totalDays,
@@ -127,12 +97,7 @@ export const createBooking = tryCatchWrapper(
       phoneNumber,
       email: email || undefined,
       specialInstructions: specialInstructions || undefined,
-      dailyPricePerUnit: parseFloat(dailyPricePerUnit.toFixed(2)),
-      storageFee,
-      serviceFee,
-      totalAmount,
-      depositAmount,
-      balanceAmount,
+      ...pricing,
       bookingStatus: "pending",
       paymentStatus: "unpaid",
     });
@@ -165,9 +130,9 @@ export const createBooking = tryCatchWrapper(
       data: {
         booking,
         paymentSummary: {
-          depositAmount,
-          balanceAmount,
-          totalAmount,
+          depositAmount: pricing.depositAmount,
+          balanceAmount: pricing.balanceAmount,
+          totalAmount: pricing.totalAmount,
           durationInDays: totalDays,
         },
       },

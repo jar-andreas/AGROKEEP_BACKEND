@@ -1,12 +1,26 @@
 import User from "../models/user.model.js";
-import { AdminAllBookingsQuery } from "../lib/schemaValidation.js";
+import crypto from "crypto";
+import {
+  AdminAllBookingsQuery,
+  AdminCreateBookingInput,
+  SingleBookingParamsInput,
+} from "../lib/schemaValidation.js";
 import tryCatchWrapper from "../lib/tryCatchWrapper.js";
-import { Request, Response, NextFunction } from "express";
+import { Request, Response } from "express";
 import Hub from "../models/storageHub.model.js";
 import Booking from "../models/booking.model.js";
 import Payment from "../models/payment.model.js";
 import { sendTsRestError, sendTsRestSuccess } from "../lib/responseHandler.js";
 import { generateBookingId } from "./booking.controller.js";
+import {
+  calculateBookingPricing,
+  calculateDurationInDays,
+  isPricingError,
+  normalizeUnitType,
+  validateHubForBooking,
+} from "../services/bookingPricing.service.js";
+import { sendAdminBookingCreatedEmail } from "../lib/email.js";
+import logger from "../config/logger.js";
 
 export const getAllBookingsAdmin = tryCatchWrapper(
   async (req: Request<{}, {}, {}, AdminAllBookingsQuery>, res: Response) => {
@@ -124,8 +138,13 @@ export const getAllBookingsAdmin = tryCatchWrapper(
 
 // controllers/booking.controller.ts
 
+// Reference for a payment the admin is recording as already collected offline
+// (cash/bank transfer), as opposed to a Paystack-issued reference.
+const generateAdminPaymentReference = (): string =>
+  `ADM-${crypto.randomBytes(4).toString("hex").toUpperCase()}`;
+
 export const adminCreateBooking = tryCatchWrapper(
-  async (req: Request, res: Response) => {
+  async (req: Request<{}, {}, AdminCreateBookingInput>, res: Response) => {
     const {
       hubId,
       userId,
@@ -139,56 +158,33 @@ export const adminCreateBooking = tryCatchWrapper(
       pickUpDate,
       specialInstructions,
       bookingStatus,
+      paymentType,
     } = req.body;
 
-    const qty = Number(quantity);
+    // Body is already validated (and quantity coerced to a positive number)
+    // by the AdminCreateBookingSchema middleware on this route.
+    const requestedUnitType = normalizeUnitType(unitType);
 
-    // 1. Verify Storage Hub existence
     const hub = await Hub.findById(hubId);
     if (!hub) {
       return sendTsRestError(res, 404, "Storage Hub not found");
     }
 
-    // 2. Validate Available Capacity
-    if (qty > hub.availableCapacity) {
-      return sendTsRestError(
-        res,
-        400,
-        `Requested quantity (${qty}) exceeds available hub capacity (${hub.availableCapacity})`,
-      );
-    }
-
-    // 3. Validate Supported Crop
-    const isCropSupported = hub.supportedCrops.some(
-      (crop: string) => crop.toLowerCase() === selectedCrop.toLowerCase(),
+    const validationError = validateHubForBooking(
+      hub,
+      quantity,
+      selectedCrop,
+      requestedUnitType,
     );
-
-    if (!isCropSupported) {
+    if (validationError) {
       return sendTsRestError(
         res,
-        400,
-        `This storage hub does not support "${selectedCrop}". Supported crops: ${hub.supportedCrops.join(", ")}`,
+        validationError.status,
+        validationError.message,
       );
     }
 
-    // 4. Validate Unit Type Compatibility
-    const hubUnitType = hub.unitType.toLowerCase();
-    const requestedUnitType = (unitType || "bags").toLowerCase();
-
-    if (hubUnitType !== "both" && hubUnitType !== requestedUnitType) {
-      return sendTsRestError(
-        res,
-        400,
-        `This storage facility only supports "${hub.unitType}" storage. You selected "${unitType}".`,
-      );
-    }
-
-    // 5. Calculate Duration in Days
-    const start = new Date(dropOffDate).getTime();
-    const end = new Date(pickUpDate).getTime();
-    const diffTime = end - start;
-    const totalDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
+    const totalDays = calculateDurationInDays(dropOffDate, pickUpDate);
     if (totalDays < 1) {
       return sendTsRestError(
         res,
@@ -197,40 +193,31 @@ export const adminCreateBooking = tryCatchWrapper(
       );
     }
 
-    // 6. Pricing Calculation
-    const isCrate =
-      requestedUnitType === "crates" || requestedUnitType === "crate";
-    const baseDailyRate = isCrate
-      ? hub.pricePerCratePerDay
-      : hub.pricePerBagPerDay;
-
-    if (!baseDailyRate || baseDailyRate <= 0) {
-      return sendTsRestError(
-        res,
-        400,
-        `This facility does not offer valid pricing for ${unitType} storage`,
-      );
+    const pricingResult = calculateBookingPricing(
+      hub,
+      quantity,
+      requestedUnitType,
+      totalDays,
+      paymentType,
+    );
+    if (isPricingError(pricingResult)) {
+      return sendTsRestError(res, pricingResult.status, pricingResult.message);
     }
+    const pricing = pricingResult;
 
-    // Bulk discount threshold check (100+ units)
-    const isBulk = qty >= 100;
-    const dailyPricePerUnit = isBulk ? hub.priceBulk100Units : baseDailyRate;
-
-    const storageFee = Math.round(dailyPricePerUnit * qty * totalDays);
-    const serviceFee = 5000; // Standard service fee
-    const totalAmount = storageFee + serviceFee;
-    const depositAmount = Math.round(totalAmount * 0.3); // 30% standard deposit
-    const balanceAmount = totalAmount - depositAmount;
-
-    // 7. Create Custom Booking ID
     const bookingId = generateBookingId();
+    // Admin is recording a payment already collected offline, so the booking
+    // is created as paid rather than "unpaid" (the default for the public,
+    // Paystack-driven flow in booking.controller.ts).
+    const paymentStatus =
+      paymentType === "full" ? "fully_paid" : "partial_deposit_paid";
 
     const booking = await Booking.create({
       bookingId,
       hub: hub._id,
       user: userId || null,
       cropType: selectedCrop,
-      quantity: qty,
+      quantity,
       unitType: requestedUnitType,
       dropOffDate: new Date(dropOffDate),
       pickUpDate: new Date(pickUpDate),
@@ -239,18 +226,92 @@ export const adminCreateBooking = tryCatchWrapper(
       phoneNumber,
       email: email || undefined,
       specialInstructions: specialInstructions || undefined,
-      dailyPricePerUnit: parseFloat(dailyPricePerUnit.toFixed(2)),
-      storageFee,
-      serviceFee,
-      totalAmount,
-      depositAmount,
-      balanceAmount,
+      ...pricing,
       bookingStatus: bookingStatus || "confirmed",
+      paymentStatus,
     });
+
+    const payment = await Payment.create({
+      user: userId || undefined,
+      booking: booking._id,
+      hub: hub._id,
+      reference: generateAdminPaymentReference(),
+      paymentMethod: "cash",
+      paymentType,
+      amount: pricing.depositAmount,
+      status: "success",
+      paidAt: new Date(),
+    });
+
+    booking.paymentReference = payment.reference;
+    await booking.save();
+
+    const recipientEmail = booking.email;
+    if (recipientEmail) {
+      sendAdminBookingCreatedEmail(
+        recipientEmail,
+        booking.fullName || "AgroKeep Customer",
+        booking.bookingId,
+        hub.name,
+        booking.cropType,
+        booking.quantity,
+        booking.unitType,
+        booking.dropOffDate,
+        booking.pickUpDate,
+        booking.totalAmount,
+        booking.depositAmount,
+        booking.balanceAmount,
+        paymentType,
+      ).catch((err) => {
+        logger.error(
+          "Failed to send admin-created booking email:",
+          err.message,
+        );
+      });
+    } else {
+      logger.warn(
+        `Skipping admin booking creation email: No email provided for booking ${booking.bookingId}`,
+      );
+    }
 
     return sendTsRestSuccess(res, 201, {
       success: true,
       message: "Admin booking created successfully",
+      data: {
+        booking,
+        payment,
+      },
+    });
+  },
+);
+
+export const cancelBookingAdmin = tryCatchWrapper(
+  async (req: Request<SingleBookingParamsInput>, res: Response) => {
+    const { id } = req.params;
+
+    const booking = await Booking.findById(id);
+    if (!booking) {
+      return sendTsRestError(res, 404, "Booking not found");
+    }
+
+    // Cancellation is only meaningful before the produce has actually arrived.
+    // Once storage has started (or the booking is already at a terminal
+    // status) it can no longer be plainly cancelled.
+    const CANCELLABLE_STATUSES = ["pending", "confirmed"];
+    if (!CANCELLABLE_STATUSES.includes(booking.bookingStatus)) {
+      return sendTsRestError(
+        res,
+        400,
+        `This booking cannot be cancelled because it is already "${booking.bookingStatus}". Only pending or confirmed bookings can be cancelled.`,
+      );
+    }
+
+    booking.bookingStatus = "cancelled";
+    await booking.save();
+
+    return sendTsRestSuccess(res, 200, {
+      success: true,
+      message: "Booking cancelled successfully",
       data: {
         booking,
       },
@@ -259,19 +320,19 @@ export const adminCreateBooking = tryCatchWrapper(
 );
 
 export const getSingleBookingAdmin = tryCatchWrapper(
-  async (req: Request<{ id: string }>, res: Response) => {
+  async (req: Request<SingleBookingParamsInput>, res: Response) => {
     const { id } = req.params;
 
     // Fetch booking details & populate Hub and User info
     const booking = await Booking.findById(id)
       .populate<{
         hub: {
-          hubName: string;
+          name: string;
           state: string;
           lga: string;
           address: string;
         };
-      }>("hub", "hubName state lga address")
+      }>("hub", "name state lga address")
       .populate<{
         user: {
           _id: InstanceType<typeof Booking>["_id"];
@@ -286,7 +347,9 @@ export const getSingleBookingAdmin = tryCatchWrapper(
     }
 
     // Fetch associated payment details
-    const paymentDetails = await Payment.findOne({ booking: booking._id }).lean();
+    const paymentDetails = await Payment.findOne({
+      booking: booking._id,
+    }).lean();
 
     return sendTsRestSuccess(res, 200, {
       success: true,
@@ -299,8 +362,10 @@ export const getSingleBookingAdmin = tryCatchWrapper(
 
           // Reservation Summary Card
           reservationSummary: {
-            hubName: booking.hub?.hubName ?? "N/A",
-            location: `${booking.hub?.lga ?? ""}, ${booking.hub?.state ?? ""}`.trim().replace(/^,|,$/g, ""),
+            hubName: booking.hub?.name ?? "N/A",
+            location: `${booking.hub?.lga ?? ""}, ${booking.hub?.state ?? ""}`
+              .trim()
+              .replace(/^,|,$/g, ""),
             crop: booking.cropType,
             quantity: booking.quantity,
             unitType: booking.unitType,
@@ -315,7 +380,8 @@ export const getSingleBookingAdmin = tryCatchWrapper(
           farmer: {
             userId: booking.user?._id ?? null,
             fullName: booking.fullName || booking.user?.fullName || "N/A",
-            phoneNumber: booking.phoneNumber || booking.user?.phoneNumber || "N/A",
+            phoneNumber:
+              booking.phoneNumber || booking.user?.phoneNumber || "N/A",
             email: booking.email || booking.user?.email || "N/A",
           },
 
@@ -336,7 +402,8 @@ export const getSingleBookingAdmin = tryCatchWrapper(
           // Payment Card
           payment: {
             method: paymentDetails?.paymentMethod ?? "Debit Card",
-            reference: paymentDetails?.reference ?? booking.paymentReference ?? "N/A",
+            reference:
+              paymentDetails?.reference ?? booking.paymentReference ?? "N/A",
             paidAt: paymentDetails?.createdAt ?? booking.updatedAt,
             status: paymentDetails?.status ?? booking.paymentStatus ?? "unpaid",
           },
@@ -361,5 +428,5 @@ export const getSingleBookingAdmin = tryCatchWrapper(
         },
       },
     });
-  }
+  },
 );

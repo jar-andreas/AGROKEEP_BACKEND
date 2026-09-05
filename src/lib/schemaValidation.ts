@@ -498,6 +498,10 @@ export const AdminCreateBookingSchema = z
     bookingStatus: z
       .enum(["pending", "confirmed", "in_storage", "completed", "cancelled"])
       .default("confirmed"),
+    // Reflects the "Initial deposit (30%)" / "Full Payment" radio in the New
+    // Booking modal — the admin is recording a payment already collected
+    // offline (cash/bank transfer) on the customer's behalf.
+    paymentType: z.enum(["deposit", "full"]).default("deposit"),
   })
   .refine(
     (data) => {
