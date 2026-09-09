@@ -433,6 +433,35 @@ export const adminAllBookingsQuerySchema = z.object({
     .transform((val) => (val ? parseInt(val, 10) : 10)),
 });
 
+export const filterOptionsResponseSchema = z.object({
+  statuses: z.array(z.string()),
+  states: z.array(z.string()),
+  storageHubs: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      state: z.string().optional(),
+    })
+  ),
+  cropTypes: z.array(z.string()),
+  paymentStatuses: z.array(z.string()),
+  dateRanges: z.array(z.string()),
+});
+
+export interface StorageHubOption {
+  id: string;
+  name: string;
+  state?: string;
+}
+
+export interface AdminBookingFilterOptionsData {
+  statuses: string[];
+  states: string[];
+  storageHubs: StorageHubOption[];
+  cropTypes: string[];
+  paymentStatuses: string[];
+  dateRanges: string[];
+}
 export const AdminCreateBookingSchema = z
   .object({
     hubId: z.string().min(1, "Storage Hub is required"),
@@ -544,4 +573,5 @@ export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
 export type UpdateUserProfileInput = z.infer<typeof updateUserProfileSchema>;
 export type AdminAllBookingsQuery = z.infer<typeof adminAllBookingsQuerySchema>;
 export type AdminCreateBookingInput = z.infer<typeof AdminCreateBookingSchema>;
+export type FilterOptionsResponse = z.infer<typeof filterOptionsResponseSchema>;
 export type SingleBookingParamsInput = z.infer<typeof getSingleBookingAdminParamSchema>;
