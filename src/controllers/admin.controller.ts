@@ -3,10 +3,8 @@ import User from "../models/user.model.js";
 import crypto from "crypto";
 import {
   AdminAllBookingsQuery,
-  AdminBookingFilterOptionsData,
   AdminCreateBookingInput,
   SingleBookingParamsInput,
-  StorageHubOption,
 } from "../lib/schemaValidation.js";
 import tryCatchWrapper from "../lib/tryCatchWrapper.js";
 import { Request, Response } from "express";
@@ -41,93 +39,6 @@ const resolveBookingStatusFilter = (status: string): string => {
   const normalized = status.toLowerCase();
   return BOOKING_STATUS_ALIASES[normalized] ?? normalized;
 };
-/**
- * Helper to sanitize and filter array items explicitly
- */
-const sanitizeStringArray = (items: unknown[]): string[] => {
-  const cleanList: string[] = [];
-
-  for (const item of items) {
-    if (typeof item === "string") {
-      const trimmedValue = item.trim();
-      if (trimmedValue !== "") {
-        cleanList.push(trimmedValue);
-      }
-    }
-  }
-
-  return cleanList;
-};
-
-/**
- * GET /api/v1/admin/filter-options
- * Retrieves available dropdown filter options for the admin bookings dashboard.
- */
-export const getAdminBookingFilterOptions = tryCatchWrapper(
-  async (_req: Request, res: Response): Promise<Response> => {
-    // 1. Fetch raw distinct values and document lists concurrently from MongoDB
-    const [
-      rawStates,
-      rawHubDocs,
-      rawCropTypes,
-      rawBookingStatuses,
-      rawPaymentStatuses,
-    ] = await Promise.all([
-      Hub.distinct("state"),
-      Hub.find({}).select("_id hubName state").lean(),
-      Booking.distinct("cropType"),
-      Booking.distinct("bookingStatus"),
-      Booking.distinct("paymentStatus"),
-    ]);
-
-    // 2. Clean and format string arrays using explicit iteration
-    const cleanStates = sanitizeStringArray(rawStates).sort();
-    const cleanCropTypes = sanitizeStringArray(rawCropTypes).sort();
-    const cleanBookingStatuses = sanitizeStringArray(rawBookingStatuses);
-    const cleanPaymentStatuses = sanitizeStringArray(rawPaymentStatuses);
-
-    // 3. Format Storage Hub options using for...of iteration
-    const formattedStorageHubs: StorageHubOption[] = [];
-
-    for (const currentHub of rawHubDocs) {
-      const hubOption: StorageHubOption = {
-        id: String(currentHub._id),
-        name: String(currentHub.hubName || "Unnamed Hub"),
-        state: String(currentHub.state || ""),
-      };
-      formattedStorageHubs.push(hubOption);
-    }
-
-    // 4. Construct final structured payload with default dropdown header choices
-    const responsePayload: AdminBookingFilterOptionsData = {
-      statuses: ["All Statuses", ...cleanBookingStatuses],
-      states: ["All States", ...cleanStates],
-      storageHubs: [
-        { id: "all", name: "All Storage Hubs" },
-        ...formattedStorageHubs,
-      ],
-      cropTypes: ["All Crop Types", ...cleanCropTypes],
-      paymentStatuses: ["All Statuses", ...cleanPaymentStatuses],
-      dateRanges: [
-        "All Dates",
-        "Today",
-        "Last 7 Days",
-        "Last 30 Days",
-        "This Month",
-        "Custom Range",
-      ],
-    };
-
-    // 5. Return formatted success HTTP response
-    sendTsRestSuccess(res, 200, {
-      success: true,
-      message: "Admin filter options retrieved successfully",
-      data: responsePayload,
-    });
-
-    return res;
-  }
-);
 
 export const getAllBookingsAdmin = tryCatchWrapper(
   async (req: Request<{}, {}, {}, AdminAllBookingsQuery>, res: Response) => {

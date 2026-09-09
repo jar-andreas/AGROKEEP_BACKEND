@@ -3,7 +3,6 @@ import {
   adminCreateBooking,
   cancelBookingAdmin,
   completeRefundAdmin,
-  getAdminBookingFilterOptions,
   getAllBookingsAdmin,
   getRefundsQueueAdmin,
   getSingleBookingAdmin,
@@ -21,13 +20,6 @@ import {
 } from "../middleware/formvalidate.middleware.js";
 
 const router = Router();
-
-router.get(
-  "/filter-options",
-  isAuthenticated,
-  isAdmin,
-  getAdminBookingFilterOptions
-);
 
 router.get(
   "/all-bookings",
