@@ -383,7 +383,7 @@ export const adminCreateBooking = tryCatchWrapper(
 // Cancellation is only meaningful before the produce has actually arrived.
 // Once storage has started (or the booking is already at a terminal status)
 // it can no longer be plainly cancelled.
-const CANCELLABLE_STATUSES = ["pending", "confirmed"];
+const CANCELLABLE_STATUSES = ["pending", "completed"];
 const PAID_STATUSES = ["partial_deposit_paid", "fully_paid"];
 
 export const cancelBookingAdmin = tryCatchWrapper(
@@ -419,7 +419,7 @@ export const cancelBookingAdmin = tryCatchWrapper(
               },
             },
           ],
-          { new: false, session },
+          { new: false, session, updatePipeline: true },
         ).populate<{
           hub: { _id: InstanceType<typeof Hub>["_id"]; name: string };
         }>("hub", "name");
