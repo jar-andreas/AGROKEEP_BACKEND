@@ -3,12 +3,15 @@ import {
   adminCreateBooking,
   cancelBookingAdmin,
   completeRefundAdmin,
+  getAdminHubLocations,
+  getAdminHubs,
   getAllBookingsAdmin,
   getRefundsQueueAdmin,
   getSingleBookingAdmin,
 } from "../controllers/admin.controller.js";
 import {
   adminAllBookingsQuerySchema,
+  adminHubsQuerySchema,
   AdminCreateBookingSchema,
   getSingleBookingAdminParamSchema,
 } from "../lib/schemaValidation.js";
@@ -27,6 +30,21 @@ router.get(
   isAdmin,
   validateQueryParams(adminAllBookingsQuerySchema),
   getAllBookingsAdmin,
+);
+
+router.get(
+  "/hub-locations",
+  isAuthenticated,
+  isAdmin,
+  getAdminHubLocations,
+);
+
+router.get(
+  "/hubs",
+  isAuthenticated,
+  isAdmin,
+  validateQueryParams(adminHubsQuerySchema),
+  getAdminHubs,
 );
 
 router.post(

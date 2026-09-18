@@ -4,6 +4,7 @@ import crypto from "crypto";
 import {
   AdminAllBookingsQuery,
   AdminCreateBookingInput,
+  AdminHubsQuery,
   SingleBookingParamsInput,
 } from "../lib/schemaValidation.js";
 import tryCatchWrapper from "../lib/tryCatchWrapper.js";
@@ -155,6 +156,60 @@ export const getAllBookingsAdmin = tryCatchWrapper(
 );
 
 // controllers/booking.controller.ts
+
+const escapeRegex = (text: string) =>
+  text.replace(/[-[\]{}()*+?^$|#\s]/g, "\\$&");
+
+// Powers the New Booking modal's Location -> Storage Hub cascade: a flat,
+// deduplicated list of every {state, lga} pair a hub actually exists in.
+export const getAdminHubLocations = tryCatchWrapper(
+  async (_req: Request, res: Response) => {
+    const locations = await Hub.aggregate([
+      { $group: { _id: { state: "$state", lga: "$lga" } } },
+      { $sort: { "_id.state": 1, "_id.lga": 1 } },
+      { $project: { _id: 0, state: "$_id.state", lga: "$_id.lga" } },
+    ]);
+
+    return sendTsRestSuccess(res, 200, {
+      success: true,
+      message: "Hub locations retrieved successfully",
+      data: { locations },
+    });
+  },
+);
+
+// Once a location is picked, returns the hubs in it with exactly the fields
+// the modal needs next: name (Storage hub dropdown), storageType, capacity
+// (for the "available capacity" banner), and supportedCrops (to constrain
+// the Crop type dropdown to what that hub can actually take).
+export const getAdminHubs = tryCatchWrapper(
+  async (req: Request<{}, {}, {}, AdminHubsQuery>, res: Response) => {
+    const { state, lga } = req.query;
+
+    const filter: Record<string, any> = {};
+    if (state) {
+      filter.state = { $regex: new RegExp(`^${escapeRegex(state)}$`, "i") };
+    }
+    if (lga) {
+      filter.lga = { $regex: new RegExp(`^${escapeRegex(lga)}$`, "i") };
+    }
+
+    const hubs = await Hub.find(filter)
+      .select(
+        "name state lga storageType unitType totalCapacity availableCapacity supportedCrops pricePerBagPerDay pricePerCratePerDay",
+      )
+      .sort({ name: 1 })
+      .lean();
+
+    return sendTsRestSuccess(res, 200, {
+      success: true,
+      message: hubs.length
+        ? "Storage hubs retrieved successfully"
+        : "No storage hubs match this location",
+      data: { hubs },
+    });
+  },
+);
 
 // Reference for a payment the admin is recording as already collected offline
 // (cash/bank transfer), as opposed to a Paystack-issued reference.

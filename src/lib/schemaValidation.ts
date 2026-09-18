@@ -516,6 +516,11 @@ export const AdminCreateBookingSchema = z
     },
   );
 
+export const adminHubsQuerySchema = z.object({
+  state: z.string().trim().optional(),
+  lga: z.string().trim().optional(),
+});
+
   export const getSingleBookingAdminParamSchema = z.object({
   id: z
     .string({
@@ -546,3 +551,4 @@ export type UpdateUserProfileInput = z.infer<typeof updateUserProfileSchema>;
 export type AdminAllBookingsQuery = z.infer<typeof adminAllBookingsQuerySchema>;
 export type AdminCreateBookingInput = z.infer<typeof AdminCreateBookingSchema>;
 export type SingleBookingParamsInput = z.infer<typeof getSingleBookingAdminParamSchema>;
+export type AdminHubsQuery = z.infer<typeof adminHubsQuerySchema>;
