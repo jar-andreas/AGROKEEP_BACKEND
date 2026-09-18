@@ -383,7 +383,7 @@ export const adminCreateBooking = tryCatchWrapper(
 // Cancellation is only meaningful before the produce has actually arrived.
 // Once storage has started (or the booking is already at a terminal status)
 // it can no longer be plainly cancelled.
-const CANCELLABLE_STATUSES = ["pending", "completed"];
+const CANCELLABLE_STATUSES = ["pending", "confirmed"];
 const PAID_STATUSES = ["partial_deposit_paid", "fully_paid"];
 
 export const cancelBookingAdmin = tryCatchWrapper(
@@ -428,7 +428,8 @@ export const cancelBookingAdmin = tryCatchWrapper(
           return;
         }
 
-        const hadCapacityReserved = previousBooking.bookingStatus === "confirmed";
+        const hadCapacityReserved =
+          previousBooking.bookingStatus === "confirmed";
         if (hadCapacityReserved) {
           await Hub.findByIdAndUpdate(
             previousBooking.hub._id,
@@ -442,7 +443,9 @@ export const cancelBookingAdmin = tryCatchWrapper(
     }
 
     if (!previousBooking) {
-      const existing = await Booking.findById(id).select("bookingStatus").lean();
+      const existing = await Booking.findById(id)
+        .select("bookingStatus")
+        .lean();
       if (!existing) {
         return sendTsRestError(res, 404, "Booking not found");
       }
