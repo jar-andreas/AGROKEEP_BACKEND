@@ -4,6 +4,10 @@ export interface IBooking extends Document {
   bookingId: string; //e.g. "AK-JFCX7K"
   hub: Schema.Types.ObjectId;
   user?: Schema.Types.ObjectId;
+  // The admin who created this booking on the customer's behalf via the
+  // admin dashboard. Unset for bookings the customer made themselves through
+  // the public flow.
+  createdBy?: Schema.Types.ObjectId;
   cropType: string;
   quantity: number;
   unitType: string;
@@ -46,6 +50,7 @@ const BookingSchema = new Schema<IBooking>(
     bookingId: { type: String, required: true, unique: true },
     hub: { type: Schema.Types.ObjectId, ref: "Hub", required: true },
     user: { type: Schema.Types.ObjectId, ref: "User" },
+    createdBy: { type: Schema.Types.ObjectId, ref: "User" },
     cropType: { type: String, required: true },
     quantity: { type: Number, required: true },
     unitType: { type: String, default: "bags" },

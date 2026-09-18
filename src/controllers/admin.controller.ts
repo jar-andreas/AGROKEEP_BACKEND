@@ -196,7 +196,7 @@ export const getAdminHubs = tryCatchWrapper(
 
     const hubs = await Hub.find(filter)
       .select(
-        "name state lga storageType unitType totalCapacity availableCapacity supportedCrops pricePerBagPerDay pricePerCratePerDay",
+        "name state lga storageType unitType images operatingHours proximityText totalCapacity availableCapacity supportedCrops pricePerBagPerDay pricePerCratePerDay",
       )
       .sort({ name: 1 })
       .lean();
@@ -248,7 +248,15 @@ export const adminCreateBooking = tryCatchWrapper(
     const normalizedDropOffDate = normalizeToCalendarDate(dropOffDate);
     const normalizedPickUpDate = normalizeToCalendarDate(pickUpDate);
 
-    const hub = await Hub.findById(hubId);
+    // req.session.userId is guaranteed set here (isAuthenticated + isAdmin
+    // already ran) — this is the admin creating the booking on the
+    // customer's behalf, shown on the Confirmation step as "Created by".
+    const adminUserId = req.session.userId as string;
+
+    const [hub, creatingAdmin] = await Promise.all([
+      Hub.findById(hubId),
+      User.findById(adminUserId).select("fullName role").lean(),
+    ]);
     if (!hub) {
       return sendTsRestError(res, 404, "Storage Hub not found");
     }
@@ -346,6 +354,7 @@ export const adminCreateBooking = tryCatchWrapper(
               bookingId,
               hub: hub._id,
               user: userId || null,
+              createdBy: adminUserId,
               cropType: selectedCrop,
               quantity,
               unitType: requestedUnitType,
@@ -430,6 +439,11 @@ export const adminCreateBooking = tryCatchWrapper(
       data: {
         booking,
         payment,
+        createdBy: {
+          id: adminUserId,
+          fullName: creatingAdmin?.fullName ?? "AgroKeep Admin",
+          role: creatingAdmin?.role ?? "admin",
+        },
       },
     });
   },
@@ -572,7 +586,14 @@ export const getSingleBookingAdmin = tryCatchWrapper(
           email: string;
           phoneNumber: string;
         };
-      }>("user", "fullName email phoneNumber");
+      }>("user", "fullName email phoneNumber")
+      .populate<{
+        createdBy: {
+          _id: InstanceType<typeof Booking>["_id"];
+          fullName: string;
+          role: string;
+        };
+      }>("createdBy", "fullName role");
 
     if (!booking) {
       return sendTsRestError(res, 404, "Booking not found");
@@ -591,6 +612,16 @@ export const getSingleBookingAdmin = tryCatchWrapper(
           id: booking._id,
           bookingCustomId: booking.bookingId, // AGK-004582
           bookingStatus: booking.bookingStatus,
+
+          // Unset for bookings the customer made themselves via the public
+          // flow — only present for bookings an admin created on their behalf.
+          createdBy: booking.createdBy
+            ? {
+                id: booking.createdBy._id,
+                fullName: booking.createdBy.fullName,
+                role: booking.createdBy.role,
+              }
+            : null,
 
           // Reservation Summary Card
           reservationSummary: {
