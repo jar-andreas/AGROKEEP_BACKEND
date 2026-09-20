@@ -1,4 +1,5 @@
 import { env } from "./src/config/keys.js";
+import { allowedOrigins } from "./src/config/allowedOrigins.js";
 import express, { Request, Response, NextFunction } from "express";
 import cors from "cors";
 import morgan from "morgan";
@@ -51,22 +52,6 @@ app.set("trust proxy", 1);
 
 //global error handler - node js process
 setupGlobalErrorHandlers();
-
-// Normalize and strip trailing slashes securely
-const cleanOrigin = env.CLIENT_URL ? env.CLIENT_URL.replace(/\/$/, "") : "";
-
-// Define allowed origins explicitly for local dev + production
-const allowedOrigins = [
-  "http://localhost:4600",
-  "http://localhost:5000",
-  cleanOrigin,
-].filter(Boolean);
-
-if (env.NODE_ENV === "production" && env.CLIENT_URL) {
-  if (!allowedOrigins.includes(env.CLIENT_URL)) {
-    allowedOrigins.push(env.CLIENT_URL);
-  }
-}
 
 const corsOptions: cors.CorsOptions = {
   origin: (origin, callback) => {
@@ -193,9 +178,11 @@ const startServer = async (): Promise<void> => {
         case "EACCES":
           logger.error(`Port ${PORT} requires elevated privileges`);
           process.exit(1);
+          break;
         case "EADDRINUSE":
           logger.error(`Port ${PORT} is already in use`);
           process.exit(1);
+          break;
         default:
           throw error;
       }

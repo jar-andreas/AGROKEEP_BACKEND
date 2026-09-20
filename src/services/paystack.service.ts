@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import crypto from "crypto";
 import { env } from "../config/keys.js";
+import { allowedOrigins } from "../config/allowedOrigins.js";
 import logger from "../config/logger.js";
 import { getPaystack } from "../config/paystack.config.js";
 import Booking from "../models/booking.model.js";
@@ -48,7 +49,15 @@ export class PaystackService {
 
       //construct frontend callback url
       const redirectSlug = data.slug ? `&slug=${data.slug}` : "";
-      const callbackUrl = `${env.CLIENT_URL}/verify-payment?reference=${reference}${redirectSlug}`;
+      // Prefer the caller's own origin (e.g. a teammate's localhost frontend
+      // hitting this deployed backend) so the Paystack redirect lands back
+      // where they actually are — but only if it's a trusted origin, so this
+      // can't be abused to redirect a real payment somewhere arbitrary.
+      const trustedOrigin =
+        data.origin && allowedOrigins.includes(data.origin)
+          ? data.origin
+          : env.CLIENT_URL;
+      const callbackUrl = `${trustedOrigin}/verify-payment?reference=${reference}${redirectSlug}`;
 
       //call paystack api
       const response = await getPaystack().post("/transaction/initialize", {
@@ -73,6 +82,7 @@ export class PaystackService {
         error.response?.data?.message ||
           error.message ||
           "Failed to initialize payment",
+        { cause: error },
       );
     }
   }
@@ -219,7 +229,9 @@ export class PaystackService {
       };
     } catch (error: any) {
       logger.error("Paystack Verification Error:", error.message);
-      throw new Error(error.message || "Payment verification failed");
+      throw new Error(error.message || "Payment verification failed", {
+        cause: error,
+      });
     }
   }
 

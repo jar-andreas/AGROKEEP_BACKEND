@@ -23,6 +23,10 @@ export const initializePayment = tryCatchWrapper(
       bookingId,
       hubId,
       slug,
+      // Lets local dev (or a future preview deployment) get its own
+      // Paystack callback instead of always landing on production — the
+      // service only trusts this if it's in the shared allowlist.
+      origin: req.headers.origin,
     });
     return sendTsRestSuccess(res, 200, {
       message: "Payment initialized successfully",

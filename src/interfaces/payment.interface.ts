@@ -3,6 +3,10 @@ export interface InitializePaymentData {
   bookingId: string;
   hubId?: string;
   slug?: string;
+  // The frontend origin that made this request (from the Origin header) —
+  // only honored if it's in the shared allowedOrigins list, so this can't be
+  // used to redirect a real payment to an attacker-controlled URL.
+  origin?: string;
 }
 
 export interface PaystackCreateResponse {
