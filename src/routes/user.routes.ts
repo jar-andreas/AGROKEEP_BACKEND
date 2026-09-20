@@ -100,7 +100,7 @@ router.patch(
   customRateLimiter(5, 15), //5 attempts per 15 minutes
   uploadMemoryParser.single("avatar"),
   uploadAvatar,
-),
+);
 
 router.patch(
   "/update-profile",

@@ -1,11 +1,11 @@
 import Hub from "../models/storageHub.model.js";
 import tryCatchWrapper from "../lib/tryCatchWrapper.js";
 import { uploadToCloudinary } from "../services/cloudinary.service.js";
-import { NextFunction, Request, Response } from "express";
+import { Request, Response } from "express";
 import { sendTsRestError, sendTsRestSuccess } from "../lib/responseHandler.js";
 
 export const createStorageHub = tryCatchWrapper(
-  async (req: Request, res: Response, next: NextFunction) => {
+  async (req: Request, res: Response) => {
     const {
       name,
       address,
@@ -146,7 +146,7 @@ export const getVerifiedHubs = tryCatchWrapper(
 );
 
 export const getHubsGroupedByState = tryCatchWrapper(
-  async (req: Request, res: Response, next: NextFunction) => {
+  async (req: Request, res: Response) => {
     // Select correct flattened pricing fields
     const hubs = await Hub.find()
       .select(
@@ -181,7 +181,7 @@ export const getHubsGroupedByState = tryCatchWrapper(
 );
 
 export const getSingleHubBySlug = tryCatchWrapper(
-  async (req: Request, res: Response, next: NextFunction) => {
+  async (req: Request, res: Response) => {
     const { slug } = req.params;
 
     const hub = await Hub.findOne({ slug }).lean();
@@ -209,7 +209,7 @@ export const getSingleHubBySlug = tryCatchWrapper(
 );
 
 export const getAllStorageHubs = tryCatchWrapper(
-  async (req: Request, res: Response, next: NextFunction) => {
+  async (req: Request, res: Response) => {
     const hubs = await Hub.find().sort({ createdAt: -1 }).lean();
 
     if (hubs.length === 0) {
@@ -229,7 +229,7 @@ export const getAllStorageHubs = tryCatchWrapper(
 );
 
 export const updateStorageHub = tryCatchWrapper(
-  async (req: Request, res: Response, next: NextFunction) => {
+  async (req: Request, res: Response) => {
     const { id } = req.params;
 
     const hub = await Hub.findById(id);
@@ -254,7 +254,7 @@ export const updateStorageHub = tryCatchWrapper(
 );
 
 export const deleteStorageHub = tryCatchWrapper(
-  async (req: Request, res: Response, next: NextFunction) => {
+  async (req: Request, res: Response) => {
     const { id } = req.params;
 
     const deletedHub = await Hub.findByIdAndDelete(id).lean();

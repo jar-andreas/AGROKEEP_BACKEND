@@ -1,11 +1,11 @@
 import ContactInquiry from "../models/contactUs.model.js";
-import { Request, Response, NextFunction } from "express";
+import { Request, Response } from "express";
 import tryCatchWrapper from "../lib/tryCatchWrapper.js";
 import { sendContactInquiry } from "../lib/email.js";
 import { sendTsRestError, sendTsRestSuccess } from "../lib/responseHandler.js";
 
 export const handleContactInquiry = tryCatchWrapper(
-  async (req: Request, res: Response, next: NextFunction) => {
+  async (req: Request, res: Response) => {
     const { fullName, email, phone, message } = req.body;
     if (!fullName || !email || !message || !phone) {
       return sendTsRestError(

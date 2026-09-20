@@ -93,7 +93,7 @@ export const registerUser = tryCatchWrapper(
 );
 
 export const verifyAccount = tryCatchWrapper(
-  async (req: Request, res: Response, next: NextFunction) => {
+  async (req: Request, res: Response) => {
     const { email } = req.query;
     const { otp } = req.body;
 
@@ -154,7 +154,7 @@ export const verifyAccount = tryCatchWrapper(
 );
 
 export const resendVerifyAccountOtp = tryCatchWrapper(
-  async (req: Request, res: Response, next: NextFunction) => {
+  async (req: Request, res: Response) => {
     const { email } = req.body;
 
     if (!email) {
@@ -286,7 +286,7 @@ export const loginUser = tryCatchWrapper(
 
 //get me
 export const getMe = tryCatchWrapper(
-  async (req: Request, res: Response, next: NextFunction) => {
+  async (req: Request, res: Response) => {
     const userId = req.session.userId;
 
     const user = await User.findById(userId).lean();
@@ -301,7 +301,7 @@ export const getMe = tryCatchWrapper(
 );
 
 export const forgotPassword = tryCatchWrapper(
-  async (req: Request, res: Response, next: NextFunction) => {
+  async (req: Request, res: Response) => {
     const { email } = req.body;
 
     if (!email) {
@@ -356,7 +356,7 @@ export const forgotPassword = tryCatchWrapper(
 );
 
 export const resendForgotPasswordOtp = tryCatchWrapper(
-  async (req: Request, res: Response, next: NextFunction) => {
+  async (req: Request, res: Response) => {
     const { email } = req.body;
 
     if (!email) {
@@ -429,7 +429,7 @@ export const resendForgotPasswordOtp = tryCatchWrapper(
 );
 
 export const verifyForgotPasswordOtp = tryCatchWrapper(
-  async (req: Request, res: Response, next: NextFunction) => {
+  async (req: Request, res: Response) => {
     const { email } = req.query;
     const { otp } = req.body;
 
@@ -487,7 +487,7 @@ export const verifyForgotPasswordOtp = tryCatchWrapper(
 );
 
 export const resetPassword = tryCatchWrapper(
-  async (req: Request, res: Response, next: NextFunction) => {
+  async (req: Request, res: Response) => {
     const { email } = req.query;
     // 1. Destructure both parameters from the request body
     const { newPassword, confirmPassword } = req.body;
@@ -539,7 +539,7 @@ export const resetPassword = tryCatchWrapper(
 );
 
 export const logoutUser = tryCatchWrapper(
-  async (req: Request, res: Response, next: NextFunction) => {
+  async (req: Request, res: Response) => {
     req.session.destroy((err) => {
       if (err) {
         return sendTsRestError(res, 500, "Could not log out. Please try again");

@@ -69,7 +69,7 @@ export const appErrorHandler = (
   err: Error | ErrorResponse,
   req: Request,
   res: Response,
-  next: NextFunction,
+  _next: NextFunction,
 ) => {
   let error = { ...err } as ErrorResponse;
   error.message = err.message;
@@ -103,11 +103,7 @@ export const appErrorHandler = (
 };
 
 // 404 Not Found handler
-export const notFoundRoutes = (
-  req: Request,
-  res: Response,
-  next: NextFunction,
-) => {
+export const notFoundRoutes = (req: Request, res: Response) => {
   sendTsRestError(
     res,
     404,
