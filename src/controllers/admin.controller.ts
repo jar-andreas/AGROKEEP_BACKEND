@@ -10,7 +10,10 @@ import {
 import tryCatchWrapper from "../lib/tryCatchWrapper.js";
 import { Request, Response } from "express";
 import Hub from "../models/storageHub.model.js";
-import Booking from "../models/booking.model.js";
+import Booking, {
+  BOOKING_STATUSES,
+  PAYMENT_STATUSES,
+} from "../models/booking.model.js";
 import Payment from "../models/payment.model.js";
 import { sendTsRestError, sendTsRestSuccess } from "../lib/responseHandler.js";
 import { generateBookingId } from "./booking.controller.js";
@@ -40,6 +43,57 @@ const resolveBookingStatusFilter = (status: string): string => {
   const normalized = status.toLowerCase();
   return BOOKING_STATUS_ALIASES[normalized] ?? normalized;
 };
+
+// Human-readable labels for the two status enums, keyed by their real
+// stored value — this is what /admin/booking-filter-options hands the
+// frontend, so whatever it submits back is already a value this filter (and
+// the schema) actually recognizes, instead of the frontend guessing labels.
+const BOOKING_STATUS_LABELS: Record<(typeof BOOKING_STATUSES)[number], string> = {
+  pending: "Pending",
+  confirmed: "Confirmed",
+  in_storage: "Active",
+  completed: "Completed",
+  cancelled: "Cancelled",
+};
+
+const PAYMENT_STATUS_LABELS: Record<(typeof PAYMENT_STATUSES)[number], string> = {
+  unpaid: "Unpaid",
+  partial_deposit_paid: "Partial Deposit Paid",
+  fully_paid: "Fully Paid",
+  refund_required: "Refund Required",
+  refunded: "Refunded",
+};
+
+export const getBookingFilterOptions = tryCatchWrapper(
+  async (req: Request, res: Response) => {
+    const [states, cropTypes, storageHubs] = await Promise.all([
+      Hub.distinct("state"),
+      Hub.distinct("supportedCrops"),
+      Hub.find().select("name").sort({ name: 1 }).lean(),
+    ]);
+
+    return sendTsRestSuccess(res, 200, {
+      success: true,
+      message: "Booking filter options retrieved successfully",
+      data: {
+        bookingStatuses: BOOKING_STATUSES.map((value) => ({
+          value,
+          label: BOOKING_STATUS_LABELS[value],
+        })),
+        paymentStatuses: PAYMENT_STATUSES.map((value) => ({
+          value,
+          label: PAYMENT_STATUS_LABELS[value],
+        })),
+        states: states.sort((a, b) => a.localeCompare(b)),
+        cropTypes: cropTypes.sort((a, b) => a.localeCompare(b)),
+        storageHubs: storageHubs.map((hub) => ({
+          id: hub._id,
+          name: hub.name,
+        })),
+      },
+    });
+  },
+);
 
 export const getAllBookingsAdmin = tryCatchWrapper(
   async (req: Request<{}, {}, {}, AdminAllBookingsQuery>, res: Response) => {
@@ -94,15 +148,30 @@ export const getAllBookingsAdmin = tryCatchWrapper(
       filter.paymentStatus = paymentStatus.toLowerCase();
     }
 
-    // 3. Storage Hub & State Filter Integration (Prevents Overwriting)
-    if (storageHub && storageHub !== "All Storage Hubs") {
-      filter.hub = storageHub;
-    } else if (state && state !== "All States") {
+    // 3. Storage Hub & State Filters (combined, not one overriding the other)
+    let stateHubIds: string[] | null = null;
+    if (state && state !== "All States") {
       const matchingStateHubs = await Hub.find({
         state: { $regex: new RegExp(`^${state}$`, "i") },
       }).select("_id");
+      stateHubIds = matchingStateHubs.map((h) => h._id.toString());
+    }
 
-      filter.hub = { $in: matchingStateHubs.map((h) => h._id) };
+    if (storageHub && storageHub !== "All Storage Hubs") {
+      if (!mongoose.Types.ObjectId.isValid(storageHub)) {
+        return sendTsRestError(res, 400, "Invalid storage hub id");
+      }
+      // A hub was picked that doesn't belong to the selected state — that's
+      // a contradiction, so the result set should be empty rather than
+      // silently falling back to just the hub (which would look like the
+      // State filter did nothing) or just the state (which would ignore the
+      // hub the admin explicitly picked).
+      filter.hub =
+        stateHubIds && !stateHubIds.includes(storageHub)
+          ? { $in: [] }
+          : storageHub;
+    } else if (stateHubIds) {
+      filter.hub = { $in: stateHubIds };
     }
 
     // 4. Date Range Filtering (Full-day inclusion)

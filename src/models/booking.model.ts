@@ -1,5 +1,24 @@
 import mongoose, { Schema, Document } from "mongoose";
 
+// Single source of truth for these two enums — reused by the schema below
+// and by the admin filter-options endpoint, so the filter dropdowns can
+// never drift out of sync with what's actually valid on a Booking.
+export const BOOKING_STATUSES = [
+  "pending",
+  "confirmed",
+  "in_storage",
+  "completed",
+  "cancelled",
+] as const;
+
+export const PAYMENT_STATUSES = [
+  "unpaid",
+  "partial_deposit_paid",
+  "fully_paid",
+  "refund_required",
+  "refunded",
+] as const;
+
 export interface IBooking extends Document {
   bookingId: string; //e.g. "AK-JFCX7K"
   hub: Schema.Types.ObjectId;
@@ -30,18 +49,8 @@ export interface IBooking extends Document {
   balanceAmount: number; // 70%
 
   // Statuses
-  bookingStatus:
-    | "pending"
-    | "confirmed"
-    | "in_storage"
-    | "completed"
-    | "cancelled";
-  paymentStatus:
-    | "unpaid"
-    | "partial_deposit_paid"
-    | "fully_paid"
-    | "refund_required"
-    | "refunded";
+  bookingStatus: (typeof BOOKING_STATUSES)[number];
+  paymentStatus: (typeof PAYMENT_STATUSES)[number];
   paymentReference?: string;
 }
 
@@ -71,18 +80,12 @@ const BookingSchema = new Schema<IBooking>(
 
     bookingStatus: {
       type: String,
-      enum: ["pending", "confirmed", "in_storage", "completed", "cancelled"],
+      enum: BOOKING_STATUSES,
       default: "pending",
     },
     paymentStatus: {
       type: String,
-      enum: [
-        "unpaid",
-        "partial_deposit_paid",
-        "fully_paid",
-        "refund_required",
-        "refunded",
-      ],
+      enum: PAYMENT_STATUSES,
       default: "unpaid",
     },
     paymentReference: { type: String },

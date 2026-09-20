@@ -6,6 +6,7 @@ import {
   getAdminHubLocations,
   getAdminHubs,
   getAllBookingsAdmin,
+  getBookingFilterOptions,
   getRefundsQueueAdmin,
   getSingleBookingAdmin,
 } from "../controllers/admin.controller.js";
@@ -30,6 +31,13 @@ router.get(
   isAdmin,
   validateQueryParams(adminAllBookingsQuerySchema),
   getAllBookingsAdmin,
+);
+
+router.get(
+  "/booking-filter-options",
+  isAuthenticated,
+  isAdmin,
+  getBookingFilterOptions,
 );
 
 router.get(
