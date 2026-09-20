@@ -232,7 +232,7 @@ export const getSingleBooking = tryCatchWrapper(
       .populate({
         path: "hub",
         select:
-          "name slug state lga address storageType isVerified operatingHours images description",
+          "name slug state lga address proximityText storageType isVerified operatingHours images description",
       })
       .populate({
         path: "user",
