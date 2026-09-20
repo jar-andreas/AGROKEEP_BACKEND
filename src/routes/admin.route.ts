@@ -9,14 +9,17 @@ import {
   getBookingFilterOptions,
   getRefundsQueueAdmin,
   getSingleBookingAdmin,
+  sendBookingEmailAdmin,
 } from "../controllers/admin.controller.js";
 import {
   adminAllBookingsQuerySchema,
   adminHubsQuerySchema,
   AdminCreateBookingSchema,
   getSingleBookingAdminParamSchema,
+  sendBookingEmailSchema,
 } from "../lib/schemaValidation.js";
 import { isAdmin, isAuthenticated } from "../middleware/auth.middleware.js";
+import { customRateLimiter } from "../middleware/ratelimit.middleware.js";
 import {
   validateFormData,
   validateParams,
@@ -77,6 +80,16 @@ router.patch(
   isAdmin,
   validateParams(getSingleBookingAdminParamSchema),
   cancelBookingAdmin,
+);
+
+router.post(
+  "/booking/:id/email",
+  isAuthenticated,
+  isAdmin,
+  customRateLimiter(20, 10), // 20 sends per 10 minutes
+  validateParams(getSingleBookingAdminParamSchema),
+  validateFormData(sendBookingEmailSchema),
+  sendBookingEmailAdmin,
 );
 
 router.get("/refunds", isAuthenticated, isAdmin, getRefundsQueueAdmin);

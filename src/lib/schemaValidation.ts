@@ -521,6 +521,19 @@ export const adminHubsQuerySchema = z.object({
   lga: z.string().trim().optional(),
 });
 
+export const sendBookingEmailSchema = z.object({
+  subject: z
+    .string({ error: "Subject is required" })
+    .trim()
+    .min(1, "Subject is required")
+    .max(200, "Subject must be at most 200 characters"),
+  message: z
+    .string({ error: "Message is required" })
+    .trim()
+    .min(1, "Message is required")
+    .max(1000, "Message must be at most 1000 characters"),
+});
+
   export const getSingleBookingAdminParamSchema = z.object({
   id: z
     .string({
@@ -552,3 +565,4 @@ export type AdminAllBookingsQuery = z.infer<typeof adminAllBookingsQuerySchema>;
 export type AdminCreateBookingInput = z.infer<typeof AdminCreateBookingSchema>;
 export type SingleBookingParamsInput = z.infer<typeof getSingleBookingAdminParamSchema>;
 export type AdminHubsQuery = z.infer<typeof adminHubsQuerySchema>;
+export type SendBookingEmailInput = z.infer<typeof sendBookingEmailSchema>;

@@ -5,6 +5,7 @@ import {
   AdminAllBookingsQuery,
   AdminCreateBookingInput,
   AdminHubsQuery,
+  SendBookingEmailInput,
   SingleBookingParamsInput,
 } from "../lib/schemaValidation.js";
 import tryCatchWrapper from "../lib/tryCatchWrapper.js";
@@ -26,6 +27,7 @@ import {
 } from "../services/bookingPricing.service.js";
 import {
   sendAdminBookingCreatedEmail,
+  sendAdminCustomMessageEmail,
   sendBookingCancelledEmail,
 } from "../lib/email.js";
 import { normalizeToCalendarDate } from "../lib/dateUtils.js";
@@ -759,6 +761,58 @@ export const getSingleBookingAdmin = tryCatchWrapper(
               ],
         },
       },
+    });
+  },
+);
+
+// Powers the "Send Email Update" panel of the Contact Farmer modal — the
+// admin picks a quick template (which just prefills subject/message on the
+// frontend, nothing template-related happens here) or types a fully custom
+// message, for the one farmer on this specific booking.
+export const sendBookingEmailAdmin = tryCatchWrapper(
+  async (
+    req: Request<SingleBookingParamsInput, {}, SendBookingEmailInput>,
+    res: Response,
+  ) => {
+    const { id } = req.params;
+    const { subject, message } = req.body;
+
+    const booking = await Booking.findById(id)
+      .select("bookingId fullName email user")
+      .populate<{ user: { email: string } }>("user", "email");
+
+    if (!booking) {
+      return sendTsRestError(res, 404, "Booking not found");
+    }
+
+    const recipientEmail = booking.email || booking.user?.email;
+    if (!recipientEmail) {
+      return sendTsRestError(
+        res,
+        400,
+        "This farmer has no email address on file for this booking",
+      );
+    }
+
+    const sent = await sendAdminCustomMessageEmail(
+      recipientEmail,
+      booking.fullName || "AgroKeep Customer",
+      booking.bookingId,
+      subject,
+      message,
+    );
+
+    if (!sent) {
+      return sendTsRestError(
+        res,
+        502,
+        "Failed to send the email. Please try again shortly.",
+      );
+    }
+
+    return sendTsRestSuccess(res, 200, {
+      success: true,
+      message: "Email sent successfully",
     });
   },
 );
