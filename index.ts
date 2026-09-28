@@ -21,6 +21,7 @@ import hubRoutes from "./src/routes/storageHub.route.js";
 import bookingRoutes from "./src/routes/booking.route.js";
 import paymentRoutes from "./src/routes/payment.route.js";
 import adminRoutes from "./src/routes/admin.route.js";
+import adminStorageHubRoutes from "./src/routes/adminStorageHub.route.js";
 import { startBookingLifecycleJob } from "./src/jobs/bookingLifecycle.job.js";
 
 import dns from "dns";
@@ -126,6 +127,7 @@ app.use("/api/v1/hub", hubRoutes);
 app.use("/api/v1/booking", bookingRoutes);
 app.use("/api/v1/payment", paymentRoutes);
 app.use("/api/v1/admin", adminRoutes);
+app.use("/api/v1/admin/storage-hubs", adminStorageHubRoutes);
 
 // Handle 404
 app.use(notFoundRoutes);

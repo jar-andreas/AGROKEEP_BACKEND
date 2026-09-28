@@ -1,32 +1,15 @@
 import { Router } from "express";
 import {
-  createStorageHub,
   deleteStorageHub,
   filterStorageHubs,
   getAllStorageHubs,
   getHubsGroupedByState,
   getSingleHubBySlug,
   getVerifiedHubs,
-  updateStorageHub,
 } from "../controllers/storageHub.controller.js";
-import { validateFormData } from "../middleware/formvalidate.middleware.js";
-import {
-  createHubValidationSchema,
-  updateHubValidationSchema,
-} from "../lib/schemaValidation.js";
-import { uploadMemoryParser } from "../services/cloudinary.service.js";
 import { isAdmin, isAuthenticated } from "../middleware/auth.middleware.js";
 
 const router = Router();
-
-router.post(
-  "/create",
-  isAdmin,
-  isAuthenticated,
-  uploadMemoryParser.array("images", 5),
-  validateFormData(createHubValidationSchema),
-  createStorageHub,
-);
 
 router.get("/verified-hubs", getVerifiedHubs);
 
@@ -35,14 +18,6 @@ router.get("/grouped-by-state", getHubsGroupedByState);
 router.get("/all", getAllStorageHubs);
 
 router.get("/filter", filterStorageHubs);
-
-router.patch(
-  "/:id",
-  isAdmin,
-  isAuthenticated,
-  validateFormData(updateHubValidationSchema),
-  updateStorageHub,
-);
 
 router.delete("/:id", isAdmin, isAuthenticated, deleteStorageHub);
 

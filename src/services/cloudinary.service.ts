@@ -105,3 +105,74 @@ export const uploadAvatarToCloudinary = (
 export const deleteFromCloudinary = (publicId: string): Promise<any> => {
   return cloudinary.uploader.destroy(publicId);
 };
+
+// Verification documents (CAC certificate, lease agreement, inspection
+// report) are PDFs, not photos — uploadMemoryParser above hard-rejects
+// anything that isn't an image, so this is a separate parser/uploader pair
+// rather than loosening the existing image-only one used for hub/avatar
+// photos.
+// Business Registration / Proof of Ownership / Inspection Report are
+// realistically PDFs or Word docs, so both are accepted alongside images
+// (facility photos).
+const ALLOWED_DOCUMENT_MIMETYPES = [
+  "application/pdf",
+  "application/msword", // .doc
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document", // .docx
+];
+
+export const uploadDocumentParser = multer({
+  storage,
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB — PDFs/docs and multi-photo bundles run larger than a single avatar/hub image
+  },
+  fileFilter: (req, file, cb) => {
+    if (
+      file.mimetype.startsWith("image/") ||
+      ALLOWED_DOCUMENT_MIMETYPES.includes(file.mimetype)
+    ) {
+      cb(null, true);
+    } else {
+      cb(
+        new Error(
+          "Only images, PDF, or Word documents are allowed for verification documents.",
+        ),
+      );
+    }
+  },
+});
+
+export interface DocumentUploadResult {
+  url: string;
+  publicId: string;
+  bytes: number;
+}
+
+export const uploadDocumentToCloudinary = (
+  fileBuffer: Buffer,
+): Promise<DocumentUploadResult> => {
+  return new Promise((resolve, reject) => {
+    const uploadStream = cloudinary.uploader.upload_stream(
+      {
+        folder: "agrokeep-hub-documents",
+        // "auto" lets Cloudinary store a PDF as a raw file and an image as
+        // an image, instead of forcing the image-specific pipeline
+        // (webp/eager transforms) that uploadToCloudinary uses.
+        resource_type: "auto",
+        secure: true,
+      },
+      (error, result) => {
+        if (error) return reject(error);
+        if (!result)
+          return reject(new Error("Cloudinary returned an empty response."));
+
+        resolve({
+          url: result.secure_url,
+          publicId: result.public_id,
+          bytes: result.bytes,
+        });
+      },
+    );
+
+    uploadStream.end(fileBuffer);
+  });
+};

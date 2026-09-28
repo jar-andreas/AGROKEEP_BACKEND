@@ -1,5 +1,10 @@
 import { z } from "zod";
 import mongoose from "mongoose";
+import {
+  HUB_DOCUMENT_TYPES,
+  HUB_STATUSES,
+  HUB_VERIFICATION_STATUSES,
+} from "../models/storageHub.model.js";
 
 export const validateSignupSchema = z
   .object({
@@ -210,6 +215,16 @@ export const createHubValidationSchema = z.object({
     .trim()
     .min(5, "Please provide a more detailed address (at least 5 characters)"),
 
+  latitude: z.coerce
+    .number({ message: "Latitude is required" })
+    .min(-90, "Latitude must be between -90 and 90")
+    .max(90, "Latitude must be between -90 and 90"),
+
+  longitude: z.coerce
+    .number({ message: "Longitude is required" })
+    .min(-180, "Longitude must be between -180 and 180")
+    .max(180, "Longitude must be between -180 and 180"),
+
   proximityText: z
     .string({ message: "Proximity text is required" })
     .trim()
@@ -283,6 +298,24 @@ export const createHubValidationSchema = z.object({
   pricePerCratePerDay: z.coerce
     .number({ message: "Price must be a number" })
     .nonnegative("Price cannot be negative"),
+
+  // Owner / contact info
+  hubOwnerName: z
+    .string({ message: "Hub owner name is required" })
+    .trim()
+    .min(2, "Hub owner name must be at least 2 characters"),
+  contactPersonName: z
+    .string({ message: "Contact person name is required" })
+    .trim()
+    .min(2, "Contact person name must be at least 2 characters"),
+  contactPhoneNumber: z
+    .string({ message: "Contact phone number is required" })
+    .trim()
+    .min(1, "Contact phone number is required"),
+  contactEmail: z
+    .string({ message: "Contact email is required" })
+    .trim()
+    .email("Invalid contact email address"),
 });
 
 export const createBookingSchema = z
@@ -534,6 +567,65 @@ export const sendBookingEmailSchema = z.object({
     .max(1000, "Message must be at most 1000 characters"),
 });
 
+export const hubIdParamSchema = z.object({
+  id: z
+    .string({ error: "Storage hub ID parameter is required" })
+    .trim()
+    .refine((val) => mongoose.Types.ObjectId.isValid(val), {
+      message:
+        "Invalid storage hub ID format. Must be a valid 24-character hexadecimal string",
+    }),
+});
+
+export const hubDocumentParamSchema = hubIdParamSchema.extend({
+  docId: z
+    .string({ error: "Document ID parameter is required" })
+    .trim()
+    .refine((val) => mongoose.Types.ObjectId.isValid(val), {
+      message:
+        "Invalid document ID format. Must be a valid 24-character hexadecimal string",
+    }),
+});
+
+export const adminHubsListQuerySchema = z.object({
+  search: z.string().trim().optional(),
+  state: z.string().trim().optional(),
+  lga: z.string().trim().optional(),
+  storageType: z.string().trim().optional(),
+  verificationStatus: z.enum(HUB_VERIFICATION_STATUSES).optional(),
+  status: z.enum(HUB_STATUSES).optional(),
+  page: z
+    .string()
+    .optional()
+    .transform((val) => (val ? parseInt(val, 10) : 1)),
+  limit: z
+    .string()
+    .optional()
+    .transform((val) => (val ? parseInt(val, 10) : 10)),
+});
+
+export const uploadHubDocumentSchema = z.object({
+  type: z.enum(HUB_DOCUMENT_TYPES, {
+    error: "A valid document type is required",
+  }),
+  fileName: z.string().trim().optional(),
+});
+
+// Single "edit hub" body: everything from updateHubValidationSchema (name,
+// pricing, capacity, features, contact info, etc.) plus the two dropdowns
+// (verificationStatus, status) and their optional reason/maintenance-window
+// context. One PATCH covers a whole edit — general fields and a state
+// transition can both land in the same save — while the controller still
+// writes a separate, purpose-built activityLog entry per category of change
+// that's actually present, rather than one generic line.
+export const updateAdminHubSchema = updateHubValidationSchema.extend({
+  verificationStatus: z.enum(HUB_VERIFICATION_STATUSES).optional(),
+  status: z.enum(HUB_STATUSES).optional(),
+  reason: z.string().trim().max(500).optional(),
+  maintenanceStart: z.string().trim().optional(),
+  maintenanceEnd: z.string().trim().optional(),
+});
+
   export const getSingleBookingAdminParamSchema = z.object({
   id: z
     .string({
@@ -558,6 +650,7 @@ export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
 export type validateContactUsSchema = z.infer<typeof validateContactUsSchema>;
 
 export type CreateHubInput = z.infer<typeof createHubValidationSchema>;
+export type UpdateHubInput = z.infer<typeof updateHubValidationSchema>;
 export type CreateBookingInput = z.infer<typeof createBookingSchema>;
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
 export type UpdateUserProfileInput = z.infer<typeof updateUserProfileSchema>;
@@ -566,3 +659,8 @@ export type AdminCreateBookingInput = z.infer<typeof AdminCreateBookingSchema>;
 export type SingleBookingParamsInput = z.infer<typeof getSingleBookingAdminParamSchema>;
 export type AdminHubsQuery = z.infer<typeof adminHubsQuerySchema>;
 export type SendBookingEmailInput = z.infer<typeof sendBookingEmailSchema>;
+export type HubIdParam = z.infer<typeof hubIdParamSchema>;
+export type HubDocumentParam = z.infer<typeof hubDocumentParamSchema>;
+export type AdminHubsListQuery = z.infer<typeof adminHubsListQuerySchema>;
+export type UpdateAdminHubInput = z.infer<typeof updateAdminHubSchema>;
+export type UploadHubDocumentInput = z.infer<typeof uploadHubDocumentSchema>;

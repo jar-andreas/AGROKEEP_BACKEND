@@ -1,124 +1,18 @@
 import Hub from "../models/storageHub.model.js";
 import tryCatchWrapper from "../lib/tryCatchWrapper.js";
-import { uploadToCloudinary } from "../services/cloudinary.service.js";
 import { Request, Response } from "express";
 import { sendTsRestError, sendTsRestSuccess } from "../lib/responseHandler.js";
-
-export const createStorageHub = tryCatchWrapper(
-  async (req: Request, res: Response) => {
-    const {
-      name,
-      address,
-      state,
-      lga,
-      storageType,
-      aboutFacility,
-      proximityText,
-      operatingHours,
-      totalCapacity,
-      availableCapacity,
-      unitType,
-      rating,
-      reviewCount,
-      supportedCrops,
-      features,
-      whatsIncluded,
-      specStorageMethod,
-      specFacilitySize,
-      specClimateControl,
-      specSecurity,
-      specAccessibility,
-      specNearestMajorMarket,
-      pricePerBagPerDay,
-      pricePerCratePerDay,
-    } = req.body;
-    const files = req.files as Express.Multer.File[];
-
-    // 1. Explicitly check for uploaded assets
-    if (!files || files.length === 0) {
-      return sendTsRestError(
-        res,
-        400,
-        "At least one facility display image is required",
-      );
-    }
-
-    // 2. Prevent exact duplicate hubs
-    const existingHub = await Hub.findOne({
-      name: { $regex: new RegExp(`^${name}$`, "i") },
-      address: { $regex: new RegExp(`^${address}$`, "i") },
-    }).lean();
-
-    if (existingHub) {
-      return sendTsRestError(
-        res,
-        409,
-        "A storage hub with this exact name and address already exists",
-      );
-    }
-
-    // 3. Evaluate capacity limits
-    const total = totalCapacity;
-    const available =
-      availableCapacity !== undefined ? availableCapacity : total;
-
-    if (available > total) {
-      return sendTsRestError(
-        res,
-        400,
-        "Available capacity cannot exceed the total capacity of the hub",
-      );
-    }
-
-    // 4. Process image uploads to Cloudinary concurrently
-    const uploadPromises = files.map((file) => uploadToCloudinary(file.buffer));
-    const cloudinaryUrls = await Promise.all(uploadPromises);
-
-    // 5. Create new Hub instance and save (Triggers schema pre-save hook for pricing & slug)
-    const newHub = new Hub({
-      name,
-      address,
-      state,
-      lga,
-      storageType,
-      aboutFacility,
-      proximityText,
-      operatingHours,
-      totalCapacity: total,
-      availableCapacity: available,
-      unitType,
-      supportedCrops,
-      rating,
-      reviewCount,
-      features,
-      whatsIncluded,
-      specStorageMethod,
-      specFacilitySize,
-      specClimateControl,
-      specSecurity,
-      specAccessibility,
-      specNearestMajorMarket,
-      pricePerBagPerDay,
-      pricePerCratePerDay,
-      images: cloudinaryUrls,
-    });
-
-    await newHub.save();
-
-    return sendTsRestSuccess(res, 201, {
-      message: "Storage Hub created successfully!",
-      data: newHub,
-    });
-  },
-);
 
 export const getVerifiedHubs = tryCatchWrapper(
   async (req: Request, res: Response) => {
     const { isVerified, limit } = req.query;
 
-    // Build filter criteria
+    // Build filter criteria — kept the isVerified query param name for
+    // backward compatibility with the existing public frontend, translated
+    // internally to the richer verificationStatus enum.
+    const wantVerified = isVerified !== undefined ? isVerified === "true" : true;
     const filter: Record<string, any> = {
-      isVerified: isVerified !== undefined ? isVerified === "true" : true,
+      verificationStatus: wantVerified ? "verified" : { $ne: "verified" },
     };
 
     // Safely parse limit (defaults to 3, falls back to 3 if limit is NaN)
@@ -150,7 +44,7 @@ export const getHubsGroupedByState = tryCatchWrapper(
     // Select correct flattened pricing fields
     const hubs = await Hub.find()
       .select(
-        "name address state lga totalCapacity availableCapacity unitType images storageType isVerified pricePerCratePerDay pricePerBagPerDay priceBulk100Units priceWeeklyFlat rating reviewCount slug",
+        "name address state lga totalCapacity availableCapacity unitType images storageType verificationStatus pricePerCratePerDay pricePerBagPerDay priceBulk100Units priceWeeklyFlat rating reviewCount slug",
       )
       .sort({ createdAt: -1 })
       .lean();
@@ -196,7 +90,7 @@ export const getSingleHubBySlug = tryCatchWrapper(
       _id: { $ne: hub._id },
     })
       .select(
-        "name state lga totalCapacity availableCapacity unitType images storageType pricePerBagPerDay pricePerCratePerDay priceBulk100Units priceWeeklyFlat rating reviewCount isVerified slug",
+        "name state lga totalCapacity availableCapacity unitType images storageType pricePerBagPerDay pricePerCratePerDay priceBulk100Units priceWeeklyFlat rating reviewCount verificationStatus slug",
       )
       .limit(3)
       .lean();
@@ -224,31 +118,6 @@ export const getAllStorageHubs = tryCatchWrapper(
       message: "Storage hubs retrieved successfully",
       count: hubs.length,
       data: hubs,
-    });
-  },
-);
-
-export const updateStorageHub = tryCatchWrapper(
-  async (req: Request, res: Response) => {
-    const { id } = req.params;
-
-    const hub = await Hub.findById(id);
-
-    if (!hub) {
-      return sendTsRestError(
-        res,
-        404,
-        "Storage Hub could not be updated because it doesn't exist",
-      );
-    }
-
-    // Apply updates and call save() to trigger schema pre-save pricing hook
-    Object.assign(hub, req.body);
-    await hub.save();
-
-    return sendTsRestSuccess(res, 200, {
-      message: "Storage Hub updated successfully",
-      data: hub,
     });
   },
 );
@@ -310,7 +179,7 @@ export const filterStorageHubs = tryCatchWrapper(
     // Updated with corrected schema fields
     const hubs = await Hub.find(filterQuery)
       .select(
-        "name state lga storageType totalCapacity availableCapacity unitType pricePerBagPerDay pricePerCratePerDay priceBulk100Units priceWeeklyFlat rating reviewCount isVerified images slug",
+        "name state lga storageType totalCapacity availableCapacity unitType pricePerBagPerDay pricePerCratePerDay priceBulk100Units priceWeeklyFlat rating reviewCount verificationStatus images slug",
       )
       .sort({ createdAt: -1 });
 
