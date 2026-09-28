@@ -293,7 +293,7 @@ export const getAdminHubDetail = tryCatchWrapper(
       verificationDocuments: {
         verifiedBy: { _id: mongoose.Types.ObjectId; fullName: string } | null;
       }[];
-    }>({ path: "verificationDocuments.verifiedBy", select: "fullName" });
+    }>({ path: "verificationDocuments.verifiedBy", select: "fullName role" });
 
     if (!hub) {
       return sendTsRestError(res, 404, "Storage Hub not found");
