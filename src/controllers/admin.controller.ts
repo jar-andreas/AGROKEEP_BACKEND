@@ -797,7 +797,7 @@ export const sendBookingEmailAdmin = tryCatchWrapper(
     const sent = await sendAdminCustomMessageEmail(
       recipientEmail,
       booking.fullName || "AgroKeep Customer",
-      booking.bookingId,
+      `Booking: ${booking.bookingId}`,
       subject,
       message,
     );

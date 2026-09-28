@@ -853,7 +853,10 @@ const escapeHtml = (text: string): string =>
 export const sendAdminCustomMessageEmail = async (
   to: string,
   toName: string,
-  bookingId: string,
+  // e.g. "Booking: AK-0B4C6B" or "Storage Hub: AgroKeep Ibadan Hub" — the
+  // caller supplies the full label since it differs by what's being
+  // contacted about.
+  referenceLabel: string,
   subject: string,
   message: string,
 ): Promise<boolean> => {
@@ -882,7 +885,7 @@ export const sendAdminCustomMessageEmail = async (
                   <td style="padding:40px;background-color:#ffffff;">
                     <p style="color:#475569;font-size:15px;line-height:1.6;margin:0 0 20px;">Hi <strong>${toName}</strong>,</p>
                     <p style="color:#1e293b;font-size:15px;line-height:1.7;margin:0 0 24px;white-space:pre-wrap;">${safeMessage}</p>
-                    <p style="color:#94a3b8;font-size:13px;margin:0;">Regarding booking: <span style="font-family:monospace;color:#15803D;">${bookingId}</span></p>
+                    <p style="color:#94a3b8;font-size:13px;margin:0;">Regarding <span style="font-family:monospace;color:#15803D;">${escapeHtml(referenceLabel)}</span></p>
                   </td>
                 </tr>
                 <tr>
@@ -903,7 +906,7 @@ export const sendAdminCustomMessageEmail = async (
     toName,
     subject,
     htmlContent,
-    textContent: `Hi ${toName},\n\n${message}\n\nRegarding booking: ${bookingId}`,
+    textContent: `Hi ${toName},\n\n${message}\n\nRegarding ${referenceLabel}`,
   });
 };
 
