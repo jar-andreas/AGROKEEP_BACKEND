@@ -291,7 +291,11 @@ export const getAdminHubDetail = tryCatchWrapper(
 
     const hub = await Hub.findById(id).populate<{
       verificationDocuments: {
-        verifiedBy: { _id: mongoose.Types.ObjectId; fullName: string } | null;
+        verifiedBy: {
+          _id: mongoose.Types.ObjectId;
+          fullName: string;
+          role: string;
+        } | null;
       }[];
     }>({ path: "verificationDocuments.verifiedBy", select: "fullName role" });
 
@@ -622,6 +626,41 @@ export const uploadHubDocument = tryCatchWrapper(
       success: true,
       message: "Document uploaded successfully",
       data: { verificationDocuments: hub.verificationDocuments },
+    });
+  },
+);
+
+// Powers the "View" button's modal — one document's full detail (file,
+// status, uploadedAt, verifiedAt, verifiedBy) rather than the frontend
+// having to dig it out of the whole hub's verificationDocuments array it
+// may or may not still have in memory.
+export const getHubDocument = tryCatchWrapper(
+  async (req: Request<HubDocumentParam>, res: Response) => {
+    const { id, docId } = req.params;
+
+    const hub = await Hub.findById(id).populate<{
+      verificationDocuments: {
+        verifiedBy: {
+          _id: mongoose.Types.ObjectId;
+          fullName: string;
+          role: string;
+        } | null;
+      }[];
+    }>({ path: "verificationDocuments.verifiedBy", select: "fullName role" });
+
+    if (!hub) {
+      return sendTsRestError(res, 404, "Storage Hub not found");
+    }
+
+    const doc = hub.verificationDocuments.id(docId);
+    if (!doc) {
+      return sendTsRestError(res, 404, "Document not found on this hub");
+    }
+
+    return sendTsRestSuccess(res, 200, {
+      success: true,
+      message: "Document retrieved successfully",
+      data: { document: doc },
     });
   },
 );

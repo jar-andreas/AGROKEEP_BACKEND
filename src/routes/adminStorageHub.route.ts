@@ -4,6 +4,7 @@ import {
   getAdminHubDetail,
   getAdminHubsList,
   getHubActivityLog,
+  getHubDocument,
   getHubFilterOptions,
   sendHubContactEmail,
   updateAdminStorageHub,
@@ -87,6 +88,14 @@ router.get(
   isAdmin,
   validateParams(hubIdParamSchema),
   getHubActivityLog,
+);
+
+router.get(
+  "/:id/documents/:docId",
+  isAuthenticated,
+  isAdmin,
+  validateParams(hubDocumentParamSchema),
+  getHubDocument,
 );
 
 router.patch(
