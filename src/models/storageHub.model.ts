@@ -69,7 +69,7 @@ export interface IHub extends Document {
   specClimateControl: string;
   specSecurity: string;
   specAccessibility: string;
-  specNearestMajorMarket: string;
+  nearestMarket: string;
 
   // Flattened Pricing Details
   pricePerBagPerDay: number;
@@ -123,7 +123,7 @@ const StorageHubSchema = new Schema<IHub>(
     specClimateControl: { type: String, required: true },
     specSecurity: { type: String, required: true },
     specAccessibility: { type: String, required: true },
-    specNearestMajorMarket: { type: String, required: true },
+    nearestMarket: { type: String, required: true },
 
     // Flattened Pricing
     pricePerBagPerDay: { type: Number, required: true, default: 0 },

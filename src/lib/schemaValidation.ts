@@ -285,8 +285,8 @@ export const createHubValidationSchema = z.object({
     .trim()
     .min(3, "Accessibility details too short"),
 
-  specNearestMajorMarket: z
-    .string({ message: "Nearest major market is required" })
+  nearestMarket: z
+    .string({ message: "Nearest market is required" })
     .trim()
     .min(3, "Market name too short"),
 
