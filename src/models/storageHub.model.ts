@@ -43,6 +43,7 @@ export interface IHubActivityLogEntry {
 }
 
 export interface IHub extends Document {
+  hubId: string;
   name: string;
   state: string;
   lga: string;
@@ -75,7 +76,18 @@ export interface IHub extends Document {
   pricePerBagPerDay: number;
   pricePerCratePerDay: number;
   priceBulk100Units: number; // Auto-calculated (5% discount per unit per day)
+  priceLongTerm100Units: number; // Auto-calculated (8% discount per unit per day)
   priceWeeklyFlat: number; // Auto-calculated (7 * base daily rate per unit)
+  // Fraction of the storage fee (e.g. 0.025 = 2.5%), not a flat amount — a
+  // flat fee made the service fee bigger than the storage cost itself on
+  // short/small bookings.
+  serviceFeeRate: number;
+
+  // Per-hub on/off switches for the two discount rules (Pricing & Discounts
+  // tab) — the 5%/8% rates and their 100-unit/30-day thresholds are fixed
+  // platform-wide, but an admin can disable either rule for a specific hub.
+  bulkDiscountEnabled: boolean;
+  longTermDiscountEnabled: boolean;
 
   // Administrative Fields
   rating: number;
@@ -99,6 +111,7 @@ export interface IHub extends Document {
 // MAIN HUB SCHEMA
 const StorageHubSchema = new Schema<IHub>(
   {
+    hubId: { type: String, required: true, unique: true },
     name: { type: String, required: true, trim: true },
     state: { type: String, required: true },
     lga: { type: String, required: true },
@@ -129,7 +142,11 @@ const StorageHubSchema = new Schema<IHub>(
     pricePerBagPerDay: { type: Number, required: true, default: 0 },
     pricePerCratePerDay: { type: Number, required: true, default: 0 },
     priceBulk100Units: { type: Number, default: 0 },
+    priceLongTerm100Units: { type: Number, default: 0 },
     priceWeeklyFlat: { type: Number, default: 0 },
+    serviceFeeRate: { type: Number, default: 0.025 },
+    bulkDiscountEnabled: { type: Boolean, default: true },
+    longTermDiscountEnabled: { type: Boolean, default: true },
 
     // Admin Fields
     rating: { type: Number, default: 0 },
@@ -196,6 +213,9 @@ StorageHubSchema.pre("save", async function () {
 
   // 100+ Units Bulk Rate (5% discount per unit daily rate)
   this.priceBulk100Units = parseFloat((baseRate * 0.95).toFixed(2));
+
+  // 100+ Units, 30+ Day Long-Term Rate (8% discount per unit daily rate)
+  this.priceLongTerm100Units = parseFloat((baseRate * 0.92).toFixed(2));
 
   // Weekly Flat Rate (7 * base daily rate per unit)
   this.priceWeeklyFlat = baseRate * 7;

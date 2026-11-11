@@ -2,9 +2,9 @@
 // Keeping this in one place avoids the two flows drifting apart (e.g. one applying the bulk
 // discount and the other not).
 
-export const SERVICE_FEE = 5000;
 export const DEPOSIT_RATE = 0.3;
 export const BULK_UNIT_THRESHOLD = 100;
+export const LONG_TERM_DURATION_THRESHOLD = 30;
 
 export interface BookingHub {
   availableCapacity: number;
@@ -13,6 +13,10 @@ export interface BookingHub {
   pricePerBagPerDay: number;
   pricePerCratePerDay: number;
   priceBulk100Units: number;
+  priceLongTerm100Units: number;
+  serviceFeeRate: number;
+  bulkDiscountEnabled: boolean;
+  longTermDiscountEnabled: boolean;
 }
 
 export interface ValidationError {
@@ -108,11 +112,21 @@ export const calculateBookingPricing = (
     };
   }
 
+  // Highest eligible discount only — long-term (8%) takes priority over
+  // bulk (5%) when a booking qualifies for both, rather than stacking them.
   const isBulk = quantity >= BULK_UNIT_THRESHOLD;
-  const dailyPricePerUnit = isBulk ? hub.priceBulk100Units : baseDailyRate;
+  const isLongTerm = isBulk && totalDays >= LONG_TERM_DURATION_THRESHOLD;
+
+  let dailyPricePerUnit = baseDailyRate;
+  if (isLongTerm && hub.longTermDiscountEnabled) {
+    dailyPricePerUnit = hub.priceLongTerm100Units;
+  } else if (isBulk && hub.bulkDiscountEnabled) {
+    dailyPricePerUnit = hub.priceBulk100Units;
+  }
 
   const storageFee = Math.round(dailyPricePerUnit * quantity * totalDays);
-  const totalAmount = storageFee + SERVICE_FEE;
+  const serviceFee = Math.round(storageFee * hub.serviceFeeRate);
+  const totalAmount = storageFee + serviceFee;
   const depositAmount =
     paymentType === "full" ? totalAmount : Math.round(totalAmount * DEPOSIT_RATE);
   const balanceAmount = totalAmount - depositAmount;
@@ -120,7 +134,7 @@ export const calculateBookingPricing = (
   return {
     dailyPricePerUnit: parseFloat(dailyPricePerUnit.toFixed(2)),
     storageFee,
-    serviceFee: SERVICE_FEE,
+    serviceFee,
     totalAmount,
     depositAmount,
     balanceAmount,

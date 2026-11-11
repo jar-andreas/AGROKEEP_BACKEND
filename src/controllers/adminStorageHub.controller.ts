@@ -111,6 +111,9 @@ export const createAdminStorageHub = tryCatchWrapper(
       nearestMarket,
       pricePerBagPerDay,
       pricePerCratePerDay,
+      serviceFeeRate,
+      bulkDiscountEnabled,
+      longTermDiscountEnabled,
       hubOwnerName,
       contactPersonName,
       contactPhoneNumber,
@@ -141,7 +144,13 @@ export const createAdminStorageHub = tryCatchWrapper(
       );
     }
 
+    // Human-readable display ID for the hubs table (e.g. "HUB-042"),
+    // distinct from Mongo's _id. Based on total hub count rather than a dedicated counter collection — fine for an admin-only, low-frequency creation flow.
+    const hubNumber = (await Hub.countDocuments()) + 1;
+    const hubId = `HUB-${String(hubNumber).padStart(3, "0")}`;
+
     const newHub = new Hub({
+      hubId,
       name,
       address,
       latitude,
@@ -168,6 +177,9 @@ export const createAdminStorageHub = tryCatchWrapper(
       nearestMarket,
       pricePerBagPerDay,
       pricePerCratePerDay,
+      serviceFeeRate,
+      bulkDiscountEnabled,
+      longTermDiscountEnabled,
       images: [],
       hubOwnerName,
       contactPersonName,
@@ -236,7 +248,7 @@ export const getAdminHubsList = tryCatchWrapper(
     const [hubs, total] = await Promise.all([
       Hub.find(filter)
         .select(
-          "name state lga storageType totalCapacity availableCapacity unitType verificationStatus status createdAt",
+          "hubId name state lga storageType totalCapacity availableCapacity unitType verificationStatus status createdAt",
         )
         .sort({ createdAt: -1 })
         .skip(skip)
@@ -340,6 +352,7 @@ export const getAdminHubDetail = tryCatchWrapper(
       message: "Storage hub details retrieved successfully",
       data: {
         id: hub._id,
+        hubId: hub.hubId,
         name: hub.name,
         images: hub.images,
         aboutFacility: hub.aboutFacility,
@@ -357,7 +370,11 @@ export const getAdminHubDetail = tryCatchWrapper(
           pricePerBagPerDay: hub.pricePerBagPerDay,
           pricePerCratePerDay: hub.pricePerCratePerDay,
           priceBulk100Units: hub.priceBulk100Units,
+          priceLongTerm100Units: hub.priceLongTerm100Units,
           priceWeeklyFlat: hub.priceWeeklyFlat,
+          serviceFeeRate: hub.serviceFeeRate,
+          bulkDiscountEnabled: hub.bulkDiscountEnabled,
+          longTermDiscountEnabled: hub.longTermDiscountEnabled,
           supportedCrops: hub.supportedCrops,
           recentBookings: recentBookingsWithLocation,
         },

@@ -299,6 +299,19 @@ export const createHubValidationSchema = z.object({
     .number({ message: "Price must be a number" })
     .nonnegative("Price cannot be negative"),
 
+  // Fraction of the storage fee, e.g. 0.025 for 2.5%. Optional on create —
+  // falls back to the schema default (2.5%) when omitted.
+  serviceFeeRate: z.coerce
+    .number({ message: "Service fee rate must be a number" })
+    .min(0, "Service fee rate cannot be negative")
+    .max(1, "Service fee rate cannot exceed 100%")
+    .optional(),
+
+  // Per-hub on/off switches for the Bulk (5%) and Long-term (8%) discount
+  // rules — the rates and thresholds themselves are fixed platform-wide.
+  bulkDiscountEnabled: z.coerce.boolean().optional(),
+  longTermDiscountEnabled: z.coerce.boolean().optional(),
+
   // Owner / contact info
   hubOwnerName: z
     .string({ message: "Hub owner name is required" })
