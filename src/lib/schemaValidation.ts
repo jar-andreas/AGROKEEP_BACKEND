@@ -617,6 +617,28 @@ export const adminHubsListQuerySchema = z.object({
     .transform((val) => (val ? parseInt(val, 10) : 10)),
 });
 
+export const adminFarmersListQuerySchema = z.object({
+  search: z.string().trim().optional(),
+  page: z
+    .string()
+    .optional()
+    .transform((val) => (val ? parseInt(val, 10) : 1)),
+  limit: z
+    .string()
+    .optional()
+    .transform((val) => (val ? parseInt(val, 10) : 10)),
+});
+
+export const farmerIdParamSchema = z.object({
+  id: z
+    .string({ error: "Farmer ID parameter is required" })
+    .trim()
+    .refine((val) => mongoose.Types.ObjectId.isValid(val), {
+      message:
+        "Invalid farmer ID format. Must be a valid 24-character hexadecimal string",
+    }),
+});
+
 export const uploadHubDocumentSchema = z.object({
   type: z.enum(HUB_DOCUMENT_TYPES, {
     error: "A valid document type is required",
@@ -677,3 +699,5 @@ export type HubDocumentParam = z.infer<typeof hubDocumentParamSchema>;
 export type AdminHubsListQuery = z.infer<typeof adminHubsListQuerySchema>;
 export type UpdateAdminHubInput = z.infer<typeof updateAdminHubSchema>;
 export type UploadHubDocumentInput = z.infer<typeof uploadHubDocumentSchema>;
+export type AdminFarmersListQuery = z.infer<typeof adminFarmersListQuerySchema>;
+export type FarmerIdParam = z.infer<typeof farmerIdParamSchema>;
