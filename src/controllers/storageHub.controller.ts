@@ -3,6 +3,14 @@ import tryCatchWrapper from "../lib/tryCatchWrapper.js";
 import { Request, Response } from "express";
 import { sendTsRestError, sendTsRestSuccess } from "../lib/responseHandler.js";
 
+// A hub awaiting admin approval ("pending") or taken off the public site
+// ("active" is the only visible status) must never appear on any public
+// route — only on the admin dashboard, until an admin approves/reactivates it.
+const PUBLIC_HUB_FILTER = {
+  status: "active",
+  verificationStatus: { $ne: "pending" },
+};
+
 export const getVerifiedHubs = tryCatchWrapper(
   async (req: Request, res: Response) => {
     const { isVerified, limit } = req.query;
@@ -10,9 +18,13 @@ export const getVerifiedHubs = tryCatchWrapper(
     // Build filter criteria — kept the isVerified query param name for
     // backward compatibility with the existing public frontend, translated
     // internally to the richer verificationStatus enum.
-    const wantVerified = isVerified !== undefined ? isVerified === "true" : true;
+    const wantVerified =
+      isVerified !== undefined ? isVerified === "true" : true;
     const filter: Record<string, any> = {
-      verificationStatus: wantVerified ? "verified" : { $ne: "verified" },
+      ...PUBLIC_HUB_FILTER,
+      verificationStatus: wantVerified
+        ? "verified"
+        : { $nin: ["verified", "pending"] },
     };
 
     // Safely parse limit (defaults to 3, falls back to 3 if limit is NaN)
@@ -42,9 +54,9 @@ export const getVerifiedHubs = tryCatchWrapper(
 export const getHubsGroupedByState = tryCatchWrapper(
   async (req: Request, res: Response) => {
     // Select correct flattened pricing fields
-    const hubs = await Hub.find()
+    const hubs = await Hub.find(PUBLIC_HUB_FILTER)
       .select(
-        "name address state lga totalCapacity availableCapacity unitType images storageType verificationStatus pricePerCratePerDay pricePerBagPerDay priceBulk100Units priceWeeklyFlat rating reviewCount slug",
+        "name address latitude longitude state lga totalCapacity availableCapacity unitType images storageType verificationStatus pricePerCratePerDay pricePerBagPerDay priceBulk100Units priceWeeklyFlat rating reviewCount slug",
       )
       .sort({ createdAt: -1 })
       .lean();
@@ -67,18 +79,18 @@ export const getHubsGroupedByState = tryCatchWrapper(
       hubs: stateGroups[state],
     }));
 
-      return sendTsRestSuccess(res, 200, {
-        message: "Hubs grouped by state retrieved successfully",
-        data: formattedData,
-      });
-    },
+    return sendTsRestSuccess(res, 200, {
+      message: "Hubs grouped by state retrieved successfully",
+      data: formattedData,
+    });
+  },
 );
 
 export const getSingleHubBySlug = tryCatchWrapper(
   async (req: Request, res: Response) => {
     const { slug } = req.params;
 
-    const hub = await Hub.findOne({ slug }).lean();
+    const hub = await Hub.findOne({ slug, ...PUBLIC_HUB_FILTER }).lean();
 
     if (!hub) {
       return sendTsRestError(res, 404, "Storage Hub not found");
@@ -86,11 +98,12 @@ export const getSingleHubBySlug = tryCatchWrapper(
 
     // Fetch 3 similar hubs in the same state using corrected schema projection
     const similarHubs = await Hub.find({
+      ...PUBLIC_HUB_FILTER,
       state: hub.state,
       _id: { $ne: hub._id },
     })
       .select(
-        "name state lga totalCapacity availableCapacity unitType images storageType pricePerBagPerDay pricePerCratePerDay priceBulk100Units priceWeeklyFlat rating reviewCount verificationStatus slug",
+        "name state lga latitude longitude totalCapacity availableCapacity unitType images storageType pricePerBagPerDay pricePerCratePerDay priceBulk100Units priceWeeklyFlat rating reviewCount verificationStatus slug",
       )
       .limit(3)
       .lean();
@@ -104,7 +117,9 @@ export const getSingleHubBySlug = tryCatchWrapper(
 
 export const getAllStorageHubs = tryCatchWrapper(
   async (req: Request, res: Response) => {
-    const hubs = await Hub.find().sort({ createdAt: -1 }).lean();
+    const hubs = await Hub.find(PUBLIC_HUB_FILTER)
+      .sort({ createdAt: -1 })
+      .lean();
 
     if (hubs.length === 0) {
       return sendTsRestSuccess(res, 200, {
@@ -149,7 +164,7 @@ export const filterStorageHubs = tryCatchWrapper(
   async (req: Request, res: Response) => {
     const { locationState, cropType, storageType } = req.query;
 
-    const filterQuery: Record<string, any> = {};
+    const filterQuery: Record<string, any> = { ...PUBLIC_HUB_FILTER };
 
     if (
       locationState &&
@@ -179,7 +194,7 @@ export const filterStorageHubs = tryCatchWrapper(
     // Updated with corrected schema fields
     const hubs = await Hub.find(filterQuery)
       .select(
-        "name state lga storageType totalCapacity availableCapacity unitType pricePerBagPerDay pricePerCratePerDay priceBulk100Units priceWeeklyFlat rating reviewCount verificationStatus images slug",
+        "name state lga latitude longitude storageType totalCapacity availableCapacity unitType pricePerBagPerDay pricePerCratePerDay priceBulk100Units priceWeeklyFlat rating reviewCount verificationStatus images slug",
       )
       .sort({ createdAt: -1 });
 
@@ -197,5 +212,5 @@ export const filterStorageHubs = tryCatchWrapper(
       count: hubs.length,
       data: hubs,
     });
-  }
+  },
 );

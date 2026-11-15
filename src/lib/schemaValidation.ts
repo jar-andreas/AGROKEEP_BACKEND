@@ -249,7 +249,12 @@ export const createHubValidationSchema = z.object({
     .nonnegative("Available capacity cannot be negative")
     .optional(),
 
-  unitType: z.string({ message: "Unit type is required" }).trim(),
+  // "both" lets a hub accept bags and crates bookings side by side — the
+  // customer's own booking still picks one or the other, priced off that
+  // hub's corresponding per-unit rate.
+  unitType: z.enum(["bags", "crates", "both"], {
+    message: "Unit type must be one of: bags, crates, both",
+  }),
 
   rating: z.coerce.number().min(0).max(5).optional(),
   reviewCount: z.coerce.number().nonnegative().optional(),
