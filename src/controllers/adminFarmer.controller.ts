@@ -66,6 +66,7 @@ export const getAdminFarmersList = tryCatchWrapper(
           fullName: user.fullName,
           phoneNumber: user.phone,
           email: user.email,
+          avatarUrl: user.avatarUrl,
           location: hubLocation(bookings[0]?.hub ?? null),
           totalBookings: bookings.length,
           totalSpent,
