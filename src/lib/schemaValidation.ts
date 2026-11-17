@@ -634,6 +634,15 @@ export const adminFarmersListQuerySchema = z.object({
     .transform((val) => (val ? parseInt(val, 10) : 10)),
 });
 
+export const adminDashboardQuerySchema = z.object({
+  range: z.enum(["today", "7d", "30d", "custom"]).optional(),
+  // Only read by the controller when range === "custom" — the resolveRange
+  // helper falls back to the 30d default if these are missing or invalid.
+  startDate: z.string().trim().optional(),
+  endDate: z.string().trim().optional(),
+  granularity: z.enum(["daily", "weekly", "monthly"]).optional(),
+});
+
 export const farmerIdParamSchema = z.object({
   id: z
     .string({ error: "Farmer ID parameter is required" })
@@ -706,3 +715,4 @@ export type UpdateAdminHubInput = z.infer<typeof updateAdminHubSchema>;
 export type UploadHubDocumentInput = z.infer<typeof uploadHubDocumentSchema>;
 export type AdminFarmersListQuery = z.infer<typeof adminFarmersListQuerySchema>;
 export type FarmerIdParam = z.infer<typeof farmerIdParamSchema>;
+export type AdminDashboardQuery = z.infer<typeof adminDashboardQuerySchema>;

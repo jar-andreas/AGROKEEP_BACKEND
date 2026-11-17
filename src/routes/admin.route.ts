@@ -11,8 +11,10 @@ import {
   getSingleBookingAdmin,
   sendBookingEmailAdmin,
 } from "../controllers/admin.controller.js";
+import { getDashBoardOverview } from "../controllers/adminDashboard.controller.js";
 import {
   adminAllBookingsQuerySchema,
+  adminDashboardQuerySchema,
   adminHubsQuerySchema,
   AdminCreateBookingSchema,
   getSingleBookingAdminParamSchema,
@@ -48,6 +50,14 @@ router.get(
   isAuthenticated,
   isAdmin,
   getAdminHubLocations,
+);
+
+router.get(
+  "/dashboard",
+  isAuthenticated,
+  isAdmin,
+  validateQueryParams(adminDashboardQuerySchema),
+  getDashBoardOverview,
 );
 
 router.get(

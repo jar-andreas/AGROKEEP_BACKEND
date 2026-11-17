@@ -40,7 +40,7 @@ export const getAdminFarmersList = tryCatchWrapper(
     const limit = Number(req.query.limit) || 10;
 
     const users = await User.find({ role: "client" })
-      .select("fullName email phone createdAt")
+      .select("fullName email phone avatarUrl createdAt")
       .sort({ createdAt: -1 })
       .lean();
 
